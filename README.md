@@ -2,7 +2,7 @@
 
 NUS Orbital 2026, Project ID-6602
 
-FindIT is a Milestone 1 prototype for an NUS-exclusive lost-and-found app.
+FindIT Milestone 1 prototype for an NUS-exclusive lost-and-found app.
 
 Current features:
 
