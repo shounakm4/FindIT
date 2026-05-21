@@ -14,7 +14,7 @@ Current features:
 
 ## How To Run
 
-Install dependencies once:
+Install dependencies once(Do not have to repeat):
 
 ```bash
 npm install
