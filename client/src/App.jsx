@@ -19,6 +19,8 @@ function App() {
   const [authForm, setAuthForm] = useState(emptyAuthForm);
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [currentUser, setCurrentUser] = useState(() => {
+    // Milestone 1 note: this keeps the prototype signed in after refresh.
+    // A later mobile build should replace this with proper server sessions or JWT auth.
     const savedUser = localStorage.getItem("finditUser");
     return savedUser ? JSON.parse(savedUser) : null;
   });
@@ -91,6 +93,8 @@ function App() {
       return;
     }
 
+    // Store the image as a data URL first so the user can preview it immediately.
+    // The backend converts this into a saved upload file when the report is submitted.
     const imageDataUrl = await readFileAsDataUrl(file);
     setItemForm({ ...itemForm, imageDataUrl });
   }
@@ -131,37 +135,163 @@ function App() {
   function handleSignOut() {
     setCurrentUser(null);
     localStorage.removeItem("finditUser");
-    setMessage("Signed out.");
+    setMessage("");
+  }
+
+  function scrollToSection(event, sectionId) {
+    event.preventDefault();
+    const section = document.getElementById(sectionId);
+
+    if (!section) {
+      return;
+    }
+
+    const targetTop = section.offsetTop - 88;
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    // The bottom tabs mimic mobile app navigation while still staying in one React screen.
+    window.history.replaceState(null, "", `#${sectionId}`);
+    window.scrollTo({
+      top: Math.max(0, Math.min(targetTop, maxScroll)),
+      behavior: "smooth"
+    });
   }
 
   return (
     <main className="app-shell">
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">NUS Orbital 2026</p>
-          <h1>Find<span>IT</span></h1>
-          <p>
-            A secure lost-and-found prototype for NUS students to report lost and found items with
-            photos, descriptions, and campus locations.
-          </p>
+      {!currentUser ? (
+        <div className="mobile-frame auth-frame">
+          <header className="auth-hero">
+            <h1>
+              Find<span>IT</span>
+            </h1>
+            <p>Campus lost-and-found reports, starting with a simple student login.</p>
+          </header>
+
+          <AuthCard
+            authForm={authForm}
+            authMode={authMode}
+            message={message}
+            onAuthModeChange={setAuthMode}
+            onAuthSubmit={handleAuthSubmit}
+            onFormChange={updateAuthForm}
+          />
         </div>
-        <div className="hero-panel glass-panel">
+      ) : (
+        <div className="mobile-frame">
+        <header className="app-header">
           <div>
-            <p className="panel-label">Milestone 1</p>
-            <strong>Login + Lost/Found Reports</strong>
+            <h1>
+              Find<span>IT</span>
+            </h1>
           </div>
-          <div className="status-pill">Local database active</div>
-        </div>
-      </section>
+          <a className="header-profile" href="#account" onClick={(event) => scrollToSection(event, "account")}>
+            <span>{currentUser.name.charAt(0).toUpperCase()}</span>
+          </a>
+        </header>
 
-      <section className="workspace-grid">
-        <aside className="glass-panel auth-panel">
-          <div className="panel-heading">
-            <p className="panel-label">Step 1</p>
-            <h2>{currentUser ? "Your Account" : "Student Login"}</h2>
-          </div>
+        <section className="hero-card">
+          <p>
+            Welcome back, {currentUser.name}. Create a lost or found report, then check the campus
+            feed for matching posts.
+          </p>
+        </section>
 
-          {currentUser ? (
+        <section className="app-content">
+          <section className="glass-panel report-panel" id="report">
+            <div className="panel-heading">
+              <p className="panel-label">Report</p>
+              <h2>Report an Item</h2>
+            </div>
+
+            <form className="report-form" onSubmit={handleItemSubmit}>
+              <div className="type-toggle">
+                <label className={itemForm.type === "lost" ? "selected" : ""}>
+                  <input
+                    type="radio"
+                    name="type"
+                    value="lost"
+                    checked={itemForm.type === "lost"}
+                    onChange={updateItemForm}
+                  />
+                  Lost item
+                </label>
+                <label className={itemForm.type === "found" ? "selected" : ""}>
+                  <input
+                    type="radio"
+                    name="type"
+                    value="found"
+                    checked={itemForm.type === "found"}
+                    onChange={updateItemForm}
+                  />
+                  Found item
+                </label>
+              </div>
+
+              <div className="form-row">
+                <label>
+                  Item name
+                  <input
+                    name="title"
+                    value={itemForm.title}
+                    onChange={updateItemForm}
+                    placeholder="AirPods Pro"
+                    required
+                  />
+                </label>
+                <label>
+                  Location
+                  <input
+                    name="location"
+                    value={itemForm.location}
+                    onChange={updateItemForm}
+                    placeholder="COM3, Level 2"
+                    required
+                  />
+                </label>
+              </div>
+
+              <label>
+                Description
+                <textarea
+                  name="description"
+                  value={itemForm.description}
+                  onChange={updateItemForm}
+                  placeholder="Add color, brand, unique marks, last seen time, or where the item is kept."
+                  rows="5"
+                  required
+                />
+              </label>
+
+              <label className="upload-box">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleImageChange}
+                />
+                {itemForm.imageDataUrl ? (
+                  <img src={itemForm.imageDataUrl} alt="Preview of uploaded item" />
+                ) : (
+                  <span>Upload item photo</span>
+                )}
+              </label>
+
+              <button className="primary-button" disabled={isSaving} type="submit">
+                {isSaving ? "Saving..." : "Save report"}
+              </button>
+            </form>
+          </section>
+
+          <section className="feed-section" id="feed">
+            <ItemColumn title="Lost Reports" accent="blue" items={lostItems} />
+            <ItemColumn title="Found Reports" accent="orange" items={foundItems} />
+          </section>
+
+          <aside className="glass-panel account-panel" id="account">
+            <div className="panel-heading">
+              <p className="panel-label">Account</p>
+              <h2>Your Profile</h2>
+            </div>
+
             <div className="signed-in-card">
               <div className="avatar">{currentUser.name.charAt(0).toUpperCase()}</div>
               <div>
@@ -172,156 +302,95 @@ function App() {
                 Sign out
               </button>
             </div>
-          ) : (
-            <>
-              <div className="segmented-control" aria-label="Choose authentication mode">
-                <button
-                  className={authMode === "register" ? "active" : ""}
-                  onClick={() => setAuthMode("register")}
-                  type="button"
-                >
-                  Register
-                </button>
-                <button
-                  className={authMode === "login" ? "active" : ""}
-                  onClick={() => setAuthMode("login")}
-                  type="button"
-                >
-                  Login
-                </button>
-              </div>
 
-              <form className="stacked-form" onSubmit={handleAuthSubmit}>
-                {authMode === "register" && (
-                  <label>
-                    Name
-                    <input
-                      name="name"
-                      value={authForm.name}
-                      onChange={updateAuthForm}
-                      placeholder="Shounak"
-                      required
-                    />
-                  </label>
-                )}
-                <label>
-                  Email
-                  <input
-                    name="email"
-                    type="email"
-                    value={authForm.email}
-                    onChange={updateAuthForm}
-                    placeholder="e0123456@u.nus.edu"
-                    required
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    name="password"
-                    type="password"
-                    value={authForm.password}
-                    onChange={updateAuthForm}
-                    placeholder="Choose a password"
-                    required
-                  />
-                </label>
-                <button className="primary-button" type="submit">
-                  {authMode === "register" ? "Create account" : "Log in"}
-                </button>
-              </form>
-            </>
-          )}
-
-          {message && <p className="message">{message}</p>}
-        </aside>
-
-        <section className="glass-panel report-panel">
-          <div className="panel-heading">
-            <p className="panel-label">Step 2</p>
-            <h2>Report an Item</h2>
-          </div>
-
-          <form className="report-form" onSubmit={handleItemSubmit}>
-            <div className="type-toggle">
-              <label className={itemForm.type === "lost" ? "selected" : ""}>
-                <input
-                  type="radio"
-                  name="type"
-                  value="lost"
-                  checked={itemForm.type === "lost"}
-                  onChange={updateItemForm}
-                />
-                Lost item
-              </label>
-              <label className={itemForm.type === "found" ? "selected" : ""}>
-                <input
-                  type="radio"
-                  name="type"
-                  value="found"
-                  checked={itemForm.type === "found"}
-                  onChange={updateItemForm}
-                />
-                Found item
-              </label>
-            </div>
-
-            <div className="form-row">
-              <label>
-                Item name
-                <input
-                  name="title"
-                  value={itemForm.title}
-                  onChange={updateItemForm}
-                  placeholder="AirPods Pro"
-                  required
-                />
-              </label>
-              <label>
-                Location
-                <input
-                  name="location"
-                  value={itemForm.location}
-                  onChange={updateItemForm}
-                  placeholder="COM3, Level 2"
-                  required
-                />
-              </label>
-            </div>
-
-            <label>
-              Description
-              <textarea
-                name="description"
-                value={itemForm.description}
-                onChange={updateItemForm}
-                placeholder="Add color, brand, unique marks, last seen time, or where the item is kept."
-                rows="5"
-                required
-              />
-            </label>
-
-            <label className="upload-box">
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImageChange} />
-              {itemForm.imageDataUrl ? (
-                <img src={itemForm.imageDataUrl} alt="Preview of uploaded item" />
-              ) : (
-                <span>Upload item photo</span>
-              )}
-            </label>
-
-            <button className="primary-button" disabled={isSaving} type="submit">
-              {isSaving ? "Saving..." : "Save report"}
-            </button>
-          </form>
+            {message && <p className="message">{message}</p>}
+          </aside>
         </section>
-      </section>
 
-      <section className="feed-section">
-        <ItemColumn title="Lost Reports" accent="blue" items={lostItems} />
-        <ItemColumn title="Found Reports" accent="orange" items={foundItems} />
-      </section>
+        <nav className="bottom-tabs" aria-label="Primary">
+          <a className="primary-tab" href="#report" onClick={(event) => scrollToSection(event, "report")}>
+            Report
+          </a>
+          <a href="#feed" onClick={(event) => scrollToSection(event, "feed")}>
+            Feed
+          </a>
+          <a href="#account" onClick={(event) => scrollToSection(event, "account")}>
+            Account
+          </a>
+        </nav>
+      </div>
+      )}
     </main>
+  );
+}
+
+function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit, onFormChange }) {
+  return (
+    <section className="glass-panel auth-card">
+      <div className="panel-heading">
+        <p className="panel-label">Get Started</p>
+        <h2>{authMode === "register" ? "Create Account" : "Log In"}</h2>
+      </div>
+
+      <div className="segmented-control" aria-label="Choose authentication mode">
+        <button
+          className={authMode === "register" ? "active" : ""}
+          onClick={() => onAuthModeChange("register")}
+          type="button"
+        >
+          Register
+        </button>
+        <button
+          className={authMode === "login" ? "active" : ""}
+          onClick={() => onAuthModeChange("login")}
+          type="button"
+        >
+          Login
+        </button>
+      </div>
+
+      <form className="stacked-form" onSubmit={onAuthSubmit}>
+        {authMode === "register" && (
+          <label>
+            Name
+            <input
+              name="name"
+              value={authForm.name}
+              onChange={onFormChange}
+              placeholder="Shounak"
+              required
+            />
+          </label>
+        )}
+        <label>
+          Email
+          <input
+            name="email"
+            type="email"
+            value={authForm.email}
+            onChange={onFormChange}
+            placeholder="e0123456@u.nus.edu"
+            required
+          />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            type="password"
+            value={authForm.password}
+            onChange={onFormChange}
+            placeholder="Choose a password"
+            required
+          />
+        </label>
+        <button className="primary-button" type="submit">
+          {authMode === "register" ? "Create account" : "Log in"}
+        </button>
+      </form>
+
+      {message && <p className="message">{message}</p>}
+    </section>
   );
 }
 
