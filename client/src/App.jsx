@@ -138,19 +138,11 @@ function App() {
     <main className="app-shell">
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">NUS Orbital 2026</p>
           <h1>Find<span>IT</span></h1>
           <p>
             A secure lost-and-found prototype for NUS students to report lost and found items with
             photos, descriptions, and campus locations.
           </p>
-        </div>
-        <div className="hero-panel glass-panel">
-          <div>
-            <p className="panel-label">Milestone 1</p>
-            <strong>Login + Lost/Found Reports</strong>
-          </div>
-          <div className="status-pill">Local database active</div>
         </div>
       </section>
 
