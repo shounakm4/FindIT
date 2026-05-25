@@ -128,7 +128,7 @@ app.post("/api/auth/login", async (request, response, next) => {
     const user = users.find((candidate) => candidate.email === email);
 
     if (!user || !verifyPassword(request.body.password, user.password)) {
-      response.status(401).json({ error: "Invalid email or password." });
+      response.status(401).json({ error: "Wrong username or password" });
       return;
     }
 
@@ -196,6 +196,10 @@ app.use((error, request, response, next) => {
 
 await ensureStorage();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`FindIT backend listening on http://localhost:${PORT}`);
+});
+
+server.on("error", (error) => {
+  console.error(error);
 });
