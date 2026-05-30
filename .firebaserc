@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "findit-ea52d"
+  },
+  "targets": {
+    "findit-ea52d": {
+      "hosting": {
+        "nusfindit": [
+          "nusfindit"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

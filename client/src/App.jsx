@@ -1,4 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  createItemReport,
+  fetchItems,
+  loginUser,
+  logoutUser,
+  registerUser,
+  subscribeToAuth
+} from "./firebaseClient.js";
 
 const emptyAuthForm = {
   name: "",
@@ -11,34 +19,48 @@ const emptyItemForm = {
   title: "",
   location: "",
   description: "",
-  imageDataUrl: ""
+  imageDataUrl: "",
+  imageFile: null
 };
 
 function App() {
   const [authMode, setAuthMode] = useState("register");
   const [authForm, setAuthForm] = useState(emptyAuthForm);
   const [itemForm, setItemForm] = useState(emptyItemForm);
-  const [currentUser, setCurrentUser] = useState(() => {
-    // Milestone 1 note: this keeps the prototype signed in after refresh.
-    // A later mobile build should replace this with proper server sessions or JWT auth.
-    const savedUser = localStorage.getItem("finditUser");
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [currentUser, setCurrentUser] = useState(null);
   const [items, setItems] = useState([]);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   const lostItems = useMemo(() => items.filter((item) => item.type === "lost"), [items]);
   const foundItems = useMemo(() => items.filter((item) => item.type === "found"), [items]);
 
   useEffect(() => {
-    loadItems();
+    const unsubscribe = subscribeToAuth(
+      (user) => {
+        setCurrentUser(user);
+        setAuthReady(true);
+        if (user) {
+          loadItems();
+        }
+      },
+      (errorMessage) => {
+        setMessage(errorMessage);
+        setAuthReady(true);
+      }
+    );
+
+    return unsubscribe;
   }, []);
 
   async function loadItems() {
-    const response = await fetch("/api/items");
-    const data = await response.json();
-    setItems(data.items || []);
+    try {
+      const firebaseItems = await fetchItems();
+      setItems(firebaseItems);
+    } catch (error) {
+      setMessage(error.message || "Unable to load item reports.");
+    }
   }
 
   function updateAuthForm(event) {
@@ -59,44 +81,35 @@ function App() {
     event.preventDefault();
     setMessage("");
 
-    const payload =
-      authMode === "register"
-        ? authForm
-        : {
-            email: authForm.email,
-            password: authForm.password
-          };
+    try {
+      const user =
+        authMode === "register"
+          ? await registerUser(authForm)
+          : await loginUser({
+              email: authForm.email,
+              password: authForm.password
+            });
 
-    const response = await fetch(`/api/auth/${authMode}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error || "Unable to continue.");
-      return;
+      setCurrentUser(user);
+      setAuthForm(emptyAuthForm);
+      setMessage("");
+      await loadItems();
+    } catch (error) {
+      setMessage(error.message || "Unable to continue.");
     }
-
-    setCurrentUser(data.user);
-    localStorage.setItem("finditUser", JSON.stringify(data.user));
-    setAuthForm(emptyAuthForm);
-    setMessage(`Welcome, ${data.user.name}.`);
   }
 
   async function handleImageChange(event) {
     const file = event.target.files?.[0];
 
     if (!file) {
-      setItemForm({ ...itemForm, imageDataUrl: "" });
+      setItemForm({ ...itemForm, imageDataUrl: "", imageFile: null });
       return;
     }
 
-    // Store the image as a data URL first so the user can preview it immediately.
-    // The backend converts this into a saved upload file when the report is submitted.
+    // Keep a quick preview on screen, but upload the original file to Firebase.
     const imageDataUrl = await readFileAsDataUrl(file);
-    setItemForm({ ...itemForm, imageDataUrl });
+    setItemForm({ ...itemForm, imageDataUrl, imageFile: file });
   }
 
   async function handleItemSubmit(event) {
@@ -108,34 +121,33 @@ function App() {
       return;
     }
 
-    setIsSaving(true);
+    try {
+      setIsSaving(true);
+      const item = await createItemReport({
+        currentUser,
+        imageFile: itemForm.imageFile,
+        report: itemForm
+      });
 
-    const response = await fetch("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...itemForm,
-        userId: currentUser.id
-      })
-    });
-    const data = await response.json();
-
-    setIsSaving(false);
-
-    if (!response.ok) {
-      setMessage(data.error || "Unable to save item.");
-      return;
+      setItems([item, ...items]);
+      setItemForm(emptyItemForm);
+      setMessage(`${item.type === "lost" ? "Lost" : "Found"} item report saved.`);
+    } catch (error) {
+      setMessage(error.message || "Unable to save item.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setItems([data.item, ...items]);
-    setItemForm(emptyItemForm);
-    setMessage(`${data.item.type === "lost" ? "Lost" : "Found"} item report saved.`);
   }
 
-  function handleSignOut() {
-    setCurrentUser(null);
-    localStorage.removeItem("finditUser");
-    setMessage("");
+  async function handleSignOut() {
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      setItems([]);
+      setMessage("");
+    } catch (error) {
+      setMessage(error.message || "Unable to sign out.");
+    }
   }
 
   function scrollToSection(event, sectionId) {
@@ -148,7 +160,7 @@ function App() {
 
     const targetTop = section.offsetTop - 88;
     const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    // The bottom tabs mimic mobile app navigation while still staying in one React screen.
+    // Keep the prototype on one page while making the tabs feel like app navigation.
     window.history.replaceState(null, "", `#${sectionId}`);
     window.scrollTo({
       top: Math.max(0, Math.min(targetTop, maxScroll)),
@@ -156,15 +168,26 @@ function App() {
     });
   }
 
+  if (!authReady) {
+    return (
+      <main className="app-shell">
+        <div className="mobile-frame auth-frame">
+          <header className="auth-hero">
+            <img className="brand-logo" src="/logo.svg" alt="FindIT" />
+            <p>Checking your session...</p>
+          </header>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       {!currentUser ? (
         <div className="mobile-frame auth-frame">
           <header className="auth-hero">
-            <h1>
-              Find<span>IT</span>
-            </h1>
-            <p>Campus lost-and-found reports, starting with a simple student login.</p>
+            <img className="brand-logo" src="/logo.svg" alt="FindIT" />
+            <p>Lost or found something on campus? Start here.</p>
           </header>
 
           <AuthCard
@@ -180,9 +203,7 @@ function App() {
         <div className="mobile-frame">
         <header className="app-header">
           <div>
-            <h1>
-              Find<span>IT</span>
-            </h1>
+            <img className="brand-logo" src="/logo.svg" alt="FindIT" />
           </div>
           <a className="header-profile" href="#account" onClick={(event) => scrollToSection(event, "account")}>
             <span>{currentUser.name.charAt(0).toUpperCase()}</span>
@@ -267,6 +288,7 @@ function App() {
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   onChange={handleImageChange}
+                  required
                 />
                 {itemForm.imageDataUrl ? (
                   <img src={itemForm.imageDataUrl} alt="Preview of uploaded item" />
@@ -357,7 +379,7 @@ function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit,
               name="name"
               value={authForm.name}
               onChange={onFormChange}
-              placeholder="Shounak"
+              placeholder="Your Name"
               required
             />
           </label>
@@ -369,7 +391,7 @@ function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit,
             type="email"
             value={authForm.email}
             onChange={onFormChange}
-            placeholder="e0123456@u.nus.edu"
+            placeholder="exxxxxxx@u.nus.edu"
             required
           />
         </label>
@@ -380,7 +402,7 @@ function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit,
             type="password"
             value={authForm.password}
             onChange={onFormChange}
-            placeholder="Choose a password"
+            placeholder={authMode === "register" ? "Choose a password" : "Enter your password"}
             required
           />
         </label>

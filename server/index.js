@@ -17,8 +17,7 @@ const ITEMS_FILE = path.join(DATA_DIR, "items.json");
 app.use(express.json({ limit: "12mb" }));
 app.use("/uploads", express.static(UPLOAD_DIR));
 
-// Milestone 1 uses local JSON files so we can demonstrate a full frontend-backend flow
-// without needing to set up a hosted database before the first checkpoint.
+// Kept for the first proof of concept. The current app uses Firebase instead.
 async function ensureStorage() {
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -44,7 +43,7 @@ async function writeJson(filePath, data) {
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  // We still hash passwords in the prototype so the local database does not store raw passwords.
+  // The old local auth path still avoids storing raw passwords.
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
   return { salt, hash };
 }
@@ -67,7 +66,7 @@ async function saveImage(dataUrl) {
     return null;
   }
 
-  // The React client sends a base64 preview string; this converts it into an upload file.
+  // Converts the old base64 image payload into a local upload file.
   const match = dataUrl.match(/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/);
   if (!match) {
     throw new Error("Please upload a PNG, JPG, JPEG, or WEBP image.");

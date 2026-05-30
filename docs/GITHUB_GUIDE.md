@@ -2,11 +2,9 @@
 
 Git is the tool that tracks your code history. GitHub is the website where you store that history online and collaborate with your partner.
 
-## 1. Connect GitHub to Codex
+## 1. Connect GitHub Locally
 
-In Codex, install or enable the GitHub connector/plugin when prompted. If you want me to use GitHub directly from here, tell me the repository URL or ask me to create a PR after the connector is enabled.
-
-You can also use the GitHub CLI locally:
+You can use the GitHub CLI locally:
 
 ```bash
 gh auth login
@@ -88,3 +86,16 @@ git push -u origin feature/item-search
 ```
 
 On GitHub, open a pull request. Your partner can review it before it gets merged into `main`.
+
+## 7. Preview Links
+
+This repo has Firebase Hosting previews through GitHub Actions.
+
+When you open a pull request, GitHub Actions builds the app and Firebase posts a preview link on
+the PR. Use that link to test changes before merging.
+
+When the PR is merged into `main`, GitHub Actions deploys the live site:
+
+```text
+https://nusfindit.web.app
+```
