@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 128" role="img" aria-labelledby="title">
+  <title id="title">FindIT</title>
+  <text x="0" y="86" font-family="Inter, Arial, sans-serif" font-size="84" font-weight="900" letter-spacing="-3">
+    <tspan fill="#003d7c">Find</tspan><tspan fill="#ef7c00">IT</tspan>
+  </text>
+  <path d="M8 108h246" stroke="#ef7c00" stroke-width="10" stroke-linecap="round"/>
+</svg>

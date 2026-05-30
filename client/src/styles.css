@@ -63,16 +63,10 @@ button {
   padding: 22px 6px 0;
 }
 
-.auth-hero h1 {
-  margin: 0;
-  color: var(--nus-blue);
-  font-size: 3.2rem;
-  line-height: 0.95;
-  letter-spacing: 0;
-}
-
-.auth-hero h1 span {
-  color: var(--nus-orange);
+.brand-logo {
+  display: block;
+  width: 178px;
+  height: auto;
 }
 
 .auth-hero p {
@@ -95,16 +89,8 @@ button {
   backdrop-filter: blur(18px);
 }
 
-.app-header h1 {
-  margin: 0;
-  color: var(--nus-blue);
-  font-size: 2.35rem;
-  line-height: 0.95;
-  letter-spacing: 0;
-}
-
-.app-header h1 span {
-  color: var(--nus-orange);
+.app-header .brand-logo {
+  width: 132px;
 }
 
 .header-profile {
@@ -470,8 +456,8 @@ textarea {
     padding-left: 32px;
   }
 
-  .app-header h1 {
-    font-size: 4rem;
+  .app-header .brand-logo {
+    width: 184px;
   }
 
   .app-content {

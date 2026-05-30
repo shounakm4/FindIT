@@ -2,33 +2,34 @@
 
 Project ID-6602
 
-FindIT is our Milestone 1 mobile-first prototype for an NUS-exclusive lost-and-found app.
-The goal for this checkpoint is to show a minimal but working frontend-backend flow: users
-can create an account, log in, and submit lost/found item reports that are saved locally.
+FindIT is our Milestone 1 mobile-first prototype for an NUS lost-and-found app.
+For this checkpoint, the main goal is a working flow: students can create an account,
+log in, and submit lost/found reports that are saved in Firebase.
 
 ## Current Features
 
-- Register and log in through a dedicated first screen, similar to a typical mobile app.
-- Unlock the reporting and feed screens only after the user is authenticated.
+- Register and log in from a dedicated first screen.
+- Show the reporting and feed screens only after login.
+- Authenticate users with Firebase Authentication.
 - Submit lost item reports with a title, location, description, and image.
 - Submit found item reports with the same fields.
-- Store users, reports, and uploaded images locally.
-- Display separate lost and found feeds in an NUS blue/orange mobile app-style UI.
-- Run as a mobile-first progressive web app prototype with app manifest metadata.
+- Store user profiles and reports in Cloud Firestore.
+- Store uploaded item photos in Cloud Storage for Firebase.
+- Display separate lost and found feeds in a blue/orange mobile app-style UI.
+- Run as a mobile-first web app prototype.
 
 ## Milestone 1 Scope
 
-For this milestone, we focused on proving that the main app flow works end to end:
+For this milestone, we focused on the core app flow:
 
 - A student can register and log in.
 - A logged-in student can enter the app and report a lost or found item.
-- Item details are connected to the user who submitted them.
-- The frontend talks to the backend through API calls.
-- Data persists after refreshing because it is stored in local JSON files.
+- Item details are linked to the user who submitted them.
+- Data persists after refreshing because it is stored in Firebase.
 
-This is still a prototype. Authentication is intentionally simple, and the app is currently
-a mobile-first React/PWA build rather than a native iOS or Android app. A later milestone can
-migrate the interface to React Native/Expo or Flutter if we decide to build a fully native app.
+This is still a prototype. Firebase Authentication handles sign-in, and the app is currently
+a mobile-first React web app rather than a native iOS or Android app. A later milestone can
+move the interface to React Native/Expo or Flutter if we decide to build a native version.
 
 ## How To Run
 
@@ -37,6 +38,14 @@ Install dependencies once:
 ```bash
 npm install
 ```
+
+Create Firebase environment file:
+
+```bash
+cp .env.example .env
+```
+
+Fill in `.env` with the Firebase Web app config from the Firebase console.
 
 Start the backend and frontend together:
 
@@ -50,7 +59,49 @@ Open the app at:
 http://localhost:5173
 ```
 
-The backend runs at `http://localhost:3001`.
+The old local backend still runs at `http://localhost:3001`, but auth, reports, and images now
+go through Firebase from the React app.
+
+## Firebase Hosting
+
+Firebase Hosting serves the Vite production build from `dist`. All paths route back to
+`index.html`, so refreshing inside the app still works. Deploys go to:
+
+```text
+https://nusfindit.web.app
+```
+
+Build and preview the hosted app locally:
+
+```bash
+npm run serve:hosting
+```
+
+Deploy when ready:
+
+```bash
+npm run deploy:hosting
+```
+
+Log in to Firebase once before deploying:
+
+```bash
+npm run firebase:login
+```
+
+The Firebase CLI is included as a development dependency, so it does not need to be installed
+globally for this project.
+
+## GitHub Actions
+
+Firebase Hosting is connected to GitHub Actions:
+
+- Pull requests create a temporary Firebase Hosting preview URL for review.
+- New commits pushed to the same pull request update the preview URL.
+- Merges to `main` deploy the live site at `https://nusfindit.web.app`.
+
+The workflows use repository secrets for the Firebase build values and the Firebase Hosting service
+account. These are stored in GitHub under repository secrets, not committed to the codebase.
 
 ## Project Structure
 
@@ -59,33 +110,32 @@ client/              React frontend
   src/App.jsx        Main app logic and UI
   src/styles.css     Mobile-first app styling
   public/            App manifest and icon for PWA-style mobile preview
-server/              Node/Express backend
-  index.js           API routes, password hashing, local storage
+server/              Old Node/Express backend from the first proof of concept
+  index.js           Previous API routes, password hashing, and local storage
   data/users.json    Local user database
   data/items.json    Local item report database
   uploads/           Uploaded item photos
 docs/                Learning notes and GitHub guide
+firebase.json        Firebase Hosting setup for the Vite build
+.firebaserc          Firebase project selection for deploys
 ```
 
-## Notes From This Build
+## Notes
 
-We used local JSON files for Milestone 1 so that we could learn and demonstrate the full stack
-without spending the first checkpoint on database hosting and deployment issues. Passwords are
-hashed before they are written to `server/data/users.json`, and uploaded item photos are saved
-under `server/uploads/`.
+We started Milestone 1 with local JSON files so the full stack was easier to understand. Auth and
+report storage now use Firebase, which is a better fit for a shared student app.
 
 The interface is designed for phone-sized screens first because the intended product is a mobile
-lost-and-found app. The current React implementation now separates the login/register experience
-from the in-app reporting flow, which makes the demo closer to a typical mobile app even though it
-is still running as a local web/PWA prototype.
+lost-and-found app. Login/register is separate from the in-app reporting flow, so the demo feels
+more like an app even though it still runs in the browser.
 
 ## Learning Path
 
-Milestone 1 focuses on full-stack basics:
+Milestone 1 focuses on the basics:
 
 - React state: remembering what the user typed.
 - Forms: collecting lost/found report details.
-- Fetch API: sending data from frontend to backend.
-- Express routes: receiving requests and returning JSON.
-- Local database files: saving data between app restarts.
+- Firebase Auth: creating accounts and logging in.
+- Firestore: saving item reports.
+- Firebase Storage: saving uploaded images.
 - Git/GitHub: version control, commits, and pushes.
