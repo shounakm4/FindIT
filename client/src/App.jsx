@@ -152,10 +152,12 @@ function App() {
       <section className="hero">
         <div className="hero-copy">
           <h1>Find<span>IT</span></h1>
-          <p>
-            A secure lost-and-found prototype for NUS students to report lost and found items with
-            photos, descriptions, and campus locations.
-          </p>
+          {currentUser && (
+            <p>
+              A secure lost-and-found prototype for NUS students to report lost and found items with
+              photos, descriptions, and campus locations.
+            </p>
+          )}
         </div>
       </section>
 
