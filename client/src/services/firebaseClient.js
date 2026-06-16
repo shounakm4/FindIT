@@ -156,6 +156,35 @@ export async function loginUser({ email, password }) {
   }
 }
 
+export async function resendVerificationEmail({ email, password }) {
+  if (!isNusEmail(email)) {
+    throw new Error("Please use your NUS email address.");
+  }
+
+  try {
+    const { auth } = ensureFirebase();
+    const credential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+
+    if (credential.user.emailVerified) {
+      await signOut(auth);
+      return {
+        alreadyVerified: true,
+        email: credential.user.email
+      };
+    }
+
+    await sendEmailVerification(credential.user);
+    await signOut(auth);
+
+    return {
+      email: credential.user.email,
+      verificationSent: true
+    };
+  } catch (error) {
+    throw new Error(mapFirebaseError(error));
+  }
+}
+
 export async function logoutUser() {
   const { auth } = ensureFirebase();
   await signOut(auth);
@@ -266,6 +295,7 @@ export async function resolveItem({ item, currentUser }) {
   const updates = {
     status: "resolved",
     resolvedAt: serverTimestamp(),
+    resolvedBy: currentUser.id,
     updatedAt: serverTimestamp()
   };
 
@@ -275,6 +305,7 @@ export async function resolveItem({ item, currentUser }) {
     ...item,
     status: "resolved",
     resolvedAt: new Date().toISOString(),
+    resolvedBy: currentUser.id,
     updatedAt: new Date().toISOString()
   };
 }

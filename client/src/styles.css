@@ -264,6 +264,11 @@ textarea {
   background: rgba(0, 61, 124, 0.1);
 }
 
+.secondary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .segmented-control,
 .type-toggle {
   display: grid;
@@ -326,6 +331,12 @@ textarea {
   padding: 12px 14px;
   border-radius: 16px;
   background: rgba(239, 124, 0, 0.12);
+}
+
+.resolved-note {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(0, 61, 124, 0.08);
 }
 
 .type-toggle label {

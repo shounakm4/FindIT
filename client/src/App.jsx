@@ -16,11 +16,17 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  resendVerificationEmail,
   resolveItem,
   subscribeToAuth
 } from "./services/firebaseClient.js";
 import { createImageSignature, readFileAsDataUrl } from "./utils/imageFiles.js";
-import { buildSearchKeywords, calculateMatchScore, filterAndSortItems, findMatchSuggestions } from "./utils/matching.js";
+import {
+  buildSearchKeywords,
+  calculateMatchScore,
+  filterAndSortItems,
+  findMatchSuggestions
+} from "./utils/matching.js";
 
 function App() {
   const [authMode, setAuthMode] = useState("register");
@@ -32,7 +38,10 @@ function App() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedClaims, setSelectedClaims] = useState([]);
   const [message, setMessage] = useState("");
+  const [isAuthSaving, setIsAuthSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClaimSaving, setIsClaimSaving] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [feedFilters, setFeedFilters] = useState(defaultFeedFilters);
 
@@ -124,6 +133,7 @@ function App() {
     setMessage("");
 
     try {
+      setIsAuthSaving(true);
       const user =
         authMode === "register"
           ? await registerUser(authForm)
@@ -144,6 +154,31 @@ function App() {
       await loadItems();
     } catch (error) {
       setMessage(error.message || "Unable to continue.");
+    } finally {
+      setIsAuthSaving(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    setMessage("");
+
+    try {
+      setIsAuthSaving(true);
+      const result = await resendVerificationEmail({
+        email: authForm.email,
+        password: authForm.password
+      });
+
+      if (result.alreadyVerified) {
+        setMessage("This email is already verified. You can log in now.");
+        return;
+      }
+
+      setMessage(`Verification email sent to ${result.email}. Check your inbox before logging in.`);
+    } catch (error) {
+      setMessage(error.message || "Unable to resend verification email.");
+    } finally {
+      setIsAuthSaving(false);
     }
   }
 
@@ -201,6 +236,7 @@ function App() {
     }
 
     try {
+      setIsClaimSaving(true);
       const claim = await createClaim({
         item: selectedItem,
         currentUser,
@@ -212,6 +248,8 @@ function App() {
       setMessage("Claim request sent.");
     } catch (error) {
       setMessage(error.message || "Unable to send claim.");
+    } finally {
+      setIsClaimSaving(false);
     }
   }
 
@@ -221,11 +259,14 @@ function App() {
     }
 
     try {
+      setIsResolving(true);
       const updatedItem = await resolveItem({ item: selectedItem, currentUser });
       setItems(items.map((item) => (item.id === updatedItem.id ? updatedItem : item)));
       setMessage("Report marked as resolved.");
     } catch (error) {
       setMessage(error.message || "Unable to resolve report.");
+    } finally {
+      setIsResolving(false);
     }
   }
 
@@ -283,10 +324,12 @@ function App() {
           <AuthCard
             authForm={authForm}
             authMode={authMode}
+            isSubmitting={isAuthSaving}
             message={message}
             onAuthModeChange={setAuthMode}
             onAuthSubmit={handleAuthSubmit}
             onFormChange={updateAuthForm}
+            onResendVerification={handleResendVerification}
           />
         </div>
       ) : (
@@ -328,6 +371,8 @@ function App() {
               claimForm={claimForm}
               claims={selectedClaims}
               currentUser={currentUser}
+              isClaimSaving={isClaimSaving}
+              isResolving={isResolving}
               item={selectedItem}
               matches={matchSuggestions}
               message={message}

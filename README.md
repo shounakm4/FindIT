@@ -2,9 +2,9 @@
 
 Project ID-6602
 
-FindIT is our Milestone 1 mobile-first prototype for an NUS lost-and-found app.
-For this checkpoint, the main goal is a working flow: students can create an account,
-log in, and submit lost/found reports that are saved in Firebase.
+FindIT is our mobile-first prototype for an NUS lost-and-found app. The current work is moving
+towards the Milestone 2 MVP: verified student access, Firebase-backed lost/found reports, claim
+requests, status updates, and a first version of item matching.
 
 ## Current Features
 
@@ -137,6 +137,20 @@ report storage now use Firebase, which is a better fit for a shared student app.
 The interface is designed for phone-sized screens first because the intended product is a mobile
 lost-and-found app. Login/register is separate from the in-app reporting flow, so the demo feels
 more like an app even though it still runs in the browser.
+
+## MVP Test Checklist
+
+- Register with an NUS email address.
+- Confirm that a verification email is sent after registration.
+- Try logging in before verification and confirm access is blocked.
+- Verify the email, then log in successfully.
+- Toggle password visibility on register and login.
+- Create one lost item report with an image.
+- Create one found item report with a similar title, location, or photo color.
+- Open the report detail view and check possible match scores.
+- Submit a claim request from a different account.
+- Mark a report as resolved and confirm new claim requests are closed.
+- Confirm the Firebase Hosting preview is created from the pull request.
 
 ## Learning Path
 

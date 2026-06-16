@@ -1,3 +1,5 @@
+import { getMatchConfidence } from "../utils/matching.js";
+
 export function ItemCard({ item, matchScore, onSelect }) {
   return (
     <button className="item-card" onClick={onSelect} type="button">
@@ -15,7 +17,7 @@ export function ItemCard({ item, matchScore, onSelect }) {
         {typeof matchScore === "number" && matchScore > 0 && (
           <div className="match-meter">
             <span style={{ width: `${matchScore}%` }} />
-            <b>{matchScore}% match</b>
+            <b>{getMatchConfidence(matchScore)} · {matchScore}%</b>
           </div>
         )}
       </div>

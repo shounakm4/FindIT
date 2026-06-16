@@ -1,7 +1,17 @@
 import { useState } from "react";
 
-export function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit, onFormChange }) {
+export function AuthCard({
+  authForm,
+  authMode,
+  isSubmitting,
+  message,
+  onAuthModeChange,
+  onAuthSubmit,
+  onFormChange,
+  onResendVerification
+}) {
   const [showPassword, setShowPassword] = useState(false);
+  const canResendVerification = authForm.email.trim() && authForm.password.trim();
 
   return (
     <section className="glass-panel auth-card">
@@ -72,9 +82,19 @@ export function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuth
             </button>
           </span>
         </label>
-        <button className="primary-button" type="submit">
-          {authMode === "register" ? "Create account" : "Log in"}
+        <button className="primary-button" disabled={isSubmitting} type="submit">
+          {isSubmitting ? "Please wait..." : authMode === "register" ? "Create account" : "Log in"}
         </button>
+        {authMode === "login" && (
+          <button
+            className="secondary-button"
+            disabled={isSubmitting || !canResendVerification}
+            onClick={onResendVerification}
+            type="button"
+          >
+            Resend verification email
+          </button>
+        )}
       </form>
 
       {message && <p className="message">{message}</p>}

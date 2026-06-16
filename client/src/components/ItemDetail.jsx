@@ -1,9 +1,12 @@
 import { formatDate } from "../utils/date.js";
+import { getMatchConfidence } from "../utils/matching.js";
 
 export function ItemDetail({
   claimForm,
   claims,
   currentUser,
+  isClaimSaving,
+  isResolving,
   item,
   matches,
   message,
@@ -51,16 +54,29 @@ export function ItemDetail({
           <strong>Posted</strong>
           <p>{formatDate(item.createdAt)}</p>
         </div>
+        {status === "resolved" && (
+          <div>
+            <strong>Resolved</strong>
+            <p>{formatDate(item.resolvedAt)}</p>
+          </div>
+        )}
       </div>
 
       <p className="detail-description">{item.description}</p>
 
       {isOwner ? (
         <div className="owner-actions">
-          <button className="primary-button" disabled={status === "resolved"} onClick={onResolve} type="button">
-            {status === "resolved" ? "Resolved" : "Mark as resolved"}
+          <button
+            className="primary-button"
+            disabled={status === "resolved" || isResolving}
+            onClick={onResolve}
+            type="button"
+          >
+            {isResolving ? "Resolving..." : status === "resolved" ? "Resolved" : "Mark as resolved"}
           </button>
         </div>
+      ) : status === "resolved" ? (
+        <p className="empty-state resolved-note">This report has been resolved, so new claim requests are closed.</p>
       ) : (
         <form className="claim-form" onSubmit={onClaimSubmit}>
           <div className="panel-heading compact">
@@ -88,8 +104,8 @@ export function ItemDetail({
               required
             />
           </label>
-          <button className="primary-button" type="submit">
-            Send request
+          <button className="primary-button" disabled={isClaimSaving} type="submit">
+            {isClaimSaving ? "Sending..." : "Send request"}
           </button>
         </form>
       )}
@@ -112,7 +128,7 @@ export function ItemDetail({
                   <strong>{match.title}</strong>
                   <small>{match.location}</small>
                 </span>
-                <b>{score}%</b>
+                <b>{getMatchConfidence(score)} · {score}%</b>
               </button>
             ))
           )}

@@ -48,6 +48,18 @@ export function findMatchSuggestions(items, selectedItem) {
     .slice(0, 4);
 }
 
+export function getMatchConfidence(score) {
+  if (score >= 70) {
+    return "High";
+  }
+
+  if (score >= 45) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
 export function buildSearchKeywords(report) {
   return tokenize(`${report.title} ${report.description} ${report.location}`);
 }
