@@ -121,12 +121,12 @@ export function ItemDetail({
           {matches.length === 0 ? (
             <p className="empty-state">No strong matches yet.</p>
           ) : (
-            matches.map(({ item: match, score }) => (
+            matches.map(({ item: match, reasons = [], score }) => (
               <button className="match-card" key={match.id} onClick={() => onSelectItem(match.id)} type="button">
                 {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
                 <span>
                   <strong>{match.title}</strong>
-                  <small>{match.location}</small>
+                  <small>{reasons.length ? reasons.join(", ") : match.location}</small>
                 </span>
                 <b>{getMatchConfidence(score)} · {score}%</b>
               </button>

@@ -22,6 +22,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    fs: {
+      allow: [projectRoot]
+    },
     proxy: {
       "/api": "http://localhost:3001",
       "/uploads": "http://localhost:3001"

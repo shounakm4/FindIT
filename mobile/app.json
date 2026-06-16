@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "FindIT",
+    "slug": "findit-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "findit",
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#f6f9ff"
+      }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FindIT uses item photos to help match lost and found reports.",
+          "cameraPermission": "FindIT uses the camera to capture lost and found item photos."
+        }
+      ]
+    ]
+  }
+}
