@@ -5,6 +5,7 @@ dist/
 .env.example
 .envexample
 .firebase/
+.expo/
 firebase-debug.log
 *-debug.log
 outputs/
