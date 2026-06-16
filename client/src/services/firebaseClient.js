@@ -16,7 +16,8 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc
+  setDoc,
+  updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 
@@ -147,6 +148,19 @@ export async function fetchItems() {
   });
 }
 
+export async function fetchClaims(itemId) {
+  const { db } = ensureFirebase();
+  const snapshot = await getDocs(query(collection(db, "items", itemId, "claims"), orderBy("createdAt", "desc")));
+  return snapshot.docs.map((claimDoc) => {
+    const claim = claimDoc.data();
+    return {
+      id: claimDoc.id,
+      ...claim,
+      createdAt: claim.createdAt?.toDate?.().toISOString?.() || claim.createdAt || new Date().toISOString()
+    };
+  });
+}
+
 export async function createItemReport({ currentUser, imageFile, report }) {
   if (!imageFile) {
     throw new Error("Please upload an item photo before saving the report.");
@@ -167,6 +181,8 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     location: report.location.trim(),
     imageUrl,
     imagePath,
+    imageSignature: report.imageSignature || null,
+    searchKeywords: report.searchKeywords || [],
     status: "open",
     userId: currentUser.id,
     userName: currentUser.name,
@@ -180,5 +196,59 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     id: docRef.id,
     ...item,
     createdAt: new Date().toISOString()
+  };
+}
+
+export async function createClaim({ item, currentUser, claim }) {
+  if (item.userId === currentUser.id) {
+    throw new Error("You cannot claim your own report.");
+  }
+
+  if (!claim.message.trim() || !claim.contact.trim()) {
+    throw new Error("Please add a message and contact details.");
+  }
+
+  const { db } = ensureFirebase();
+  const claimBody = {
+    itemId: item.id,
+    itemOwnerId: item.userId,
+    claimantId: currentUser.id,
+    claimantName: currentUser.name,
+    claimantEmail: currentUser.email,
+    message: claim.message.trim(),
+    contact: claim.contact.trim(),
+    status: "open",
+    createdAt: serverTimestamp()
+  };
+
+  const claimRef = await addDoc(collection(db, "items", item.id, "claims"), claimBody);
+
+  return {
+    id: claimRef.id,
+    ...claimBody,
+    createdAt: new Date().toISOString()
+  };
+}
+
+export async function resolveItem({ item, currentUser }) {
+  if (item.userId !== currentUser.id) {
+    throw new Error("Only the reporter can resolve this item.");
+  }
+
+  const { db } = ensureFirebase();
+  const itemRef = doc(db, "items", item.id);
+  const updates = {
+    status: "resolved",
+    resolvedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  await updateDoc(itemRef, updates);
+
+  return {
+    ...item,
+    status: "resolved",
+    resolvedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 }
