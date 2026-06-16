@@ -4,7 +4,6 @@ dist/
 .env
 .env.example
 .envexample
-package-lock.json
 .firebase/
 firebase-debug.log
 *-debug.log
