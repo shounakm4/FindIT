@@ -13,6 +13,9 @@ log in, and submit lost/found reports that are saved in Firebase.
 - Authenticate users with Firebase Authentication.
 - Submit lost item reports with a title, location, description, and image.
 - Submit found item reports with the same fields.
+- Search, filter, and inspect reports from a detailed view.
+- Submit claim/contact requests and resolve completed reports.
+- View prototype match scores between opposite-type reports.
 - Store user profiles and reports in Cloud Firestore.
 - Store uploaded item photos in Cloud Storage for Firebase.
 - Display separate lost and found feeds in a blue/orange mobile app-style UI.
@@ -39,10 +42,10 @@ Install dependencies once:
 npm install
 ```
 
-Create Firebase environment file:
+Create a local Firebase environment file:
 
 ```bash
-cp .env.example .env
+touch .env
 ```
 
 Fill in `.env` with the Firebase Web app config from the Firebase console.
@@ -106,17 +109,21 @@ account. These are stored in GitHub under repository secrets, not committed to t
 ## Project Structure
 
 ```text
-client/              React frontend
-  src/App.jsx        Main app logic and UI
-  src/styles.css     Mobile-first app styling
-  public/            App manifest and icon for PWA-style mobile preview
+client/               React frontend
+  src/App.jsx         Main app state and screen flow
+  src/components/     Reusable UI sections
+  src/constants/      Empty form values and defaults
+  src/services/       Firebase Auth, Firestore, and Storage helpers
+  src/utils/          Date, image, search, and matching helpers
+  src/styles.css      Mobile-first app styling
+  public/             App manifest and icon for PWA-style mobile preview
 server/              Old Node/Express backend from the first proof of concept
   index.js           Previous API routes, password hashing, and local storage
   data/users.json    Local user database
   data/items.json    Local item report database
   uploads/           Uploaded item photos
 docs/                Learning notes and GitHub guide
-firebase.json        Firebase Hosting setup for the Vite build
+firebase.json        Firebase Hosting, Firestore rules, and Storage rules setup
 .firebaserc          Firebase project selection for deploys
 ```
 
@@ -139,3 +146,7 @@ Milestone 1 focuses on the basics:
 - Firestore: saving item reports.
 - Firebase Storage: saving uploaded images.
 - Git/GitHub: version control, commits, and pushes.
+
+Milestone 2 builds on that with search, claim requests, report status updates, and a first version
+of photo/text matching. The current matching score is intentionally simple so we can understand it
+clearly before replacing it with a stronger mobile image model later.

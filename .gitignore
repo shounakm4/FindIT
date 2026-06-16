@@ -2,9 +2,14 @@ node_modules/
 dist/
 .DS_Store
 .env
+.env.example
+.envexample
+package-lock.json
 .firebase/
 firebase-debug.log
 *-debug.log
+outputs/
+docs/MILESTONE_2.md
 server/uploads/*
 !server/uploads/.gitkeep
 server/data/*.json
