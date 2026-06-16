@@ -215,6 +215,29 @@ textarea {
   resize: vertical;
 }
 
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 76px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  min-width: 58px;
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 10px;
+  color: var(--blue);
+  background: rgba(0, 61, 124, 0.1);
+  font-weight: 900;
+  transform: translateY(-50%);
+}
+
 .primary-button,
 .secondary-button,
 .segmented-control button {

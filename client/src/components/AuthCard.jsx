@@ -1,4 +1,8 @@
+import { useState } from "react";
+
 export function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit, onFormChange }) {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <section className="glass-panel auth-card">
       <div className="panel-heading">
@@ -49,14 +53,24 @@ export function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuth
         </label>
         <label>
           Password
-          <input
-            name="password"
-            type="password"
-            value={authForm.password}
-            onChange={onFormChange}
-            placeholder={authMode === "register" ? "Choose a password" : "Enter your password"}
-            required
-          />
+          <span className="password-field">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              value={authForm.password}
+              onChange={onFormChange}
+              placeholder={authMode === "register" ? "Choose a password" : "Enter your password"}
+              required
+            />
+            <button
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="password-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+              type="button"
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </span>
         </label>
         <button className="primary-button" type="submit">
           {authMode === "register" ? "Create account" : "Log in"}

@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
   updateProfile
@@ -61,7 +62,8 @@ function publicUser(user) {
   return {
     id: user.uid,
     name: user.displayName || user.email.split("@")[0],
-    email: user.email
+    email: user.email,
+    emailVerified: user.emailVerified
   };
 }
 
@@ -86,7 +88,16 @@ export function subscribeToAuth(callback, onError) {
     const { auth } = ensureFirebase();
     return onAuthStateChanged(
       auth,
-      (user) => callback(user ? publicUser(user) : null),
+      (user) => {
+        if (user && !user.emailVerified) {
+          onError("Please verify your NUS email before using FindIT.");
+          signOut(auth);
+          callback(null);
+          return;
+        }
+
+        callback(user ? publicUser(user) : null);
+      },
       (error) => onError(mapFirebaseError(error))
     );
   } catch (error) {
@@ -105,15 +116,19 @@ export async function registerUser({ name, email, password }) {
     const { auth, db } = ensureFirebase();
     const credential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     await updateProfile(credential.user, { displayName: name.trim() });
+    await sendEmailVerification(credential.user);
     await setDoc(doc(db, "users", credential.user.uid), {
       name: name.trim(),
       email: credential.user.email,
+      emailVerified: false,
       createdAt: serverTimestamp()
     });
+
+    await signOut(auth);
+
     return {
-      id: credential.user.uid,
-      name: name.trim(),
-      email: credential.user.email
+      email: credential.user.email,
+      verificationSent: true
     };
   } catch (error) {
     throw new Error(mapFirebaseError(error));
@@ -122,8 +137,19 @@ export async function registerUser({ name, email, password }) {
 
 export async function loginUser({ email, password }) {
   try {
-    const { auth } = ensureFirebase();
+    const { auth, db } = ensureFirebase();
     const credential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+
+    if (!credential.user.emailVerified) {
+      await sendEmailVerification(credential.user);
+      await signOut(auth);
+      throw new Error("Please verify your NUS email. We sent another verification link to your inbox.");
+    }
+
+    await updateDoc(doc(db, "users", credential.user.uid), {
+      emailVerified: true
+    });
+
     return publicUser(credential.user);
   } catch (error) {
     throw new Error(mapFirebaseError(error));

@@ -9,6 +9,8 @@ log in, and submit lost/found reports that are saved in Firebase.
 ## Current Features
 
 - Register and log in from a dedicated first screen.
+- Verify NUS email addresses through Firebase before entering the app.
+- Toggle password visibility on the login and registration form.
 - Show the reporting and feed screens only after login.
 - Authenticate users with Firebase Authentication.
 - Submit lost item reports with a title, location, description, and image.

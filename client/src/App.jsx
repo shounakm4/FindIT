@@ -132,6 +132,13 @@ function App() {
               password: authForm.password
             });
 
+      if (user.verificationSent) {
+        setAuthMode("login");
+        setAuthForm(emptyAuthForm);
+        setMessage(`Verification email sent to ${user.email}. Please verify your NUS email before logging in.`);
+        return;
+      }
+
       setCurrentUser(user);
       setAuthForm(emptyAuthForm);
       await loadItems();
