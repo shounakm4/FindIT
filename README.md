@@ -119,6 +119,16 @@ npm run mobile:start
 The mobile app is planned to reuse the same Firebase project and shared matching helpers. See
 `docs/MOBILE_MATCHING_PLAN.md` for the matching options and migration path.
 
+If the mobile app opens to a blank screen, restart Expo with a clean cache:
+
+```bash
+cd mobile
+npx expo start --clear
+```
+
+Then check the terminal and iOS simulator logs. The mobile app includes an error screen so render
+errors should appear in the app instead of staying as a blank screen.
+
 ## GitHub Actions
 
 Firebase Hosting is connected to GitHub Actions:
