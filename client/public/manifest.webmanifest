@@ -1,0 +1,18 @@
+{
+  "name": "NUS FindIT",
+  "short_name": "FindIT",
+  "description": "Mobile-first lost-and-found prototype for NUS students.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fbff",
+  "theme_color": "#003d7c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

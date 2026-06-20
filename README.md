@@ -31,9 +31,7 @@ This is still a prototype. Firebase Authentication handles sign-in, and the app 
 a mobile-first React web app rather than a native iOS or Android app. A later milestone can
 move the interface to React Native/Expo or Flutter if we decide to build a native version.
 
-## Run Locally
-
-Use these steps when developing or testing the app on your own computer.
+## How To Run
 
 Install dependencies once:
 
@@ -41,30 +39,21 @@ Install dependencies once:
 npm install
 ```
 
-Create a local Firebase environment file:
+Create Firebase environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in `.env` with the Firebase Web app config from the Firebase console:
+Fill in `.env` with the Firebase Web app config from the Firebase console.
 
-```text
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-```
-
-Start the local development server:
+Start the backend and frontend together:
 
 ```bash
 npm run dev
 ```
 
-Open the local app at:
+Open the app at:
 
 ```text
 http://localhost:5173
@@ -73,21 +62,14 @@ http://localhost:5173
 The old local backend still runs at `http://localhost:3001`, but auth, reports, and images now
 go through Firebase from the React app.
 
-## Live App
+## Firebase Hosting
 
-The deployed app is available at:
+Firebase Hosting serves the Vite production build from `dist`. All paths route back to
+`index.html`, so refreshing inside the app still works. Deploys go to:
 
 ```text
 https://nusfindit.web.app
 ```
-
-Use `http://localhost:5173` for local development and `https://nusfindit.web.app` for the public
-Firebase-hosted version.
-
-## Firebase Hosting
-
-Firebase Hosting serves the Vite production build from `dist`. All paths route back to
-`index.html`, so refreshing inside the app still works.
 
 Build and preview the hosted app locally:
 

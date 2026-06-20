@@ -2,7 +2,7 @@
   "name": "findit",
   "version": "0.1.0",
   "private": true,
-  "description": "NUS FindIT Milestone 1 prototype with React frontend and Node backend.",
+  "description": "FindIT mobile-first lost-and-found prototype.",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,client -c blue,magenta \"npm run dev:server\" \"npm run dev:client\"",
@@ -10,7 +10,12 @@
     "dev:client": "vite --host 127.0.0.1 --config client/vite.config.js",
     "start": "node server/index.js",
     "build": "vite build --config client/vite.config.js",
-    "preview": "vite preview --host 127.0.0.1 --config client/vite.config.js"
+    "preview": "vite preview --host 127.0.0.1 --config client/vite.config.js",
+    "firebase:login": "firebase login",
+    "preserve:hosting": "npm run build",
+    "serve:hosting": "firebase emulators:start --only hosting",
+    "predeploy:hosting": "npm run build",
+    "deploy:hosting": "firebase deploy --only hosting"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.4",
@@ -20,5 +25,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "vite": "^7.1.12"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.19.0"
   }
 }

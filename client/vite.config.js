@@ -3,13 +3,22 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const clientRoot = fileURLToPath(new URL(".", import.meta.url));
+const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 
 export default defineConfig({
   root: clientRoot,
+  envDir: projectRoot,
   plugins: [react()],
   build: {
     outDir: "../dist",
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ["firebase/app", "firebase/auth", "firebase/firestore", "firebase/storage"]
+        }
+      }
+    }
   },
   server: {
     port: 5173,

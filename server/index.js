@@ -17,6 +17,7 @@ const ITEMS_FILE = path.join(DATA_DIR, "items.json");
 app.use(express.json({ limit: "12mb" }));
 app.use("/uploads", express.static(UPLOAD_DIR));
 
+// Kept for the first proof of concept. The current app uses Firebase instead.
 async function ensureStorage() {
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -42,6 +43,7 @@ async function writeJson(filePath, data) {
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  // The old local auth path still avoids storing raw passwords.
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
   return { salt, hash };
 }
@@ -64,6 +66,7 @@ async function saveImage(dataUrl) {
     return null;
   }
 
+  // Converts the old base64 image payload into a local upload file.
   const match = dataUrl.match(/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/);
   if (!match) {
     throw new Error("Please upload a PNG, JPG, JPEG, or WEBP image.");

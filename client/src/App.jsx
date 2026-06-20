@@ -1,4 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  createItemReport,
+  fetchItems,
+  loginUser,
+  logoutUser,
+  registerUser,
+  subscribeToAuth
+} from "./firebaseClient.js";
 
 const emptyAuthForm = {
   name: "",
@@ -11,33 +19,48 @@ const emptyItemForm = {
   title: "",
   location: "",
   description: "",
-  imageDataUrl: ""
+  imageDataUrl: "",
+  imageFile: null
 };
 
 function App() {
-  const [authMode, setAuthMode] = useState("login");
+  const [authMode, setAuthMode] = useState("register");
   const [authForm, setAuthForm] = useState(emptyAuthForm);
   const [itemForm, setItemForm] = useState(emptyItemForm);
-  const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem("finditUser");
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [currentUser, setCurrentUser] = useState(null);
   const [items, setItems] = useState([]);
   const [message, setMessage] = useState("");
-  const [messageTone, setMessageTone] = useState("info");
-  const [activeSection, setActiveSection] = useState("report");
   const [isSaving, setIsSaving] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   const lostItems = useMemo(() => items.filter((item) => item.type === "lost"), [items]);
+  const foundItems = useMemo(() => items.filter((item) => item.type === "found"), [items]);
 
   useEffect(() => {
-    loadItems();
+    const unsubscribe = subscribeToAuth(
+      (user) => {
+        setCurrentUser(user);
+        setAuthReady(true);
+        if (user) {
+          loadItems();
+        }
+      },
+      (errorMessage) => {
+        setMessage(errorMessage);
+        setAuthReady(true);
+      }
+    );
+
+    return unsubscribe;
   }, []);
 
   async function loadItems() {
-    const response = await fetch("/api/items");
-    const data = await response.json();
-    setItems(data.items || []);
+    try {
+      const firebaseItems = await fetchItems();
+      setItems(firebaseItems);
+    } catch (error) {
+      setMessage(error.message || "Unable to load item reports.");
+    }
   }
 
   function updateAuthForm(event) {
@@ -57,225 +80,306 @@ function App() {
   async function handleAuthSubmit(event) {
     event.preventDefault();
     setMessage("");
-    setMessageTone("info");
 
-    const payload =
-      authMode === "register"
-        ? authForm
-        : {
-            email: authForm.email,
-            password: authForm.password
-          };
+    try {
+      const user =
+        authMode === "register"
+          ? await registerUser(authForm)
+          : await loginUser({
+              email: authForm.email,
+              password: authForm.password
+            });
 
-    const response = await fetch(`/api/auth/${authMode}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(authMode === "login" ? "Wrong username or password" : data.error || "Unable to continue.");
-      setMessageTone("error");
-      return;
+      setCurrentUser(user);
+      setAuthForm(emptyAuthForm);
+      setMessage("");
+      await loadItems();
+    } catch (error) {
+      setMessage(error.message || "Unable to continue.");
     }
-
-    setCurrentUser(data.user);
-    localStorage.setItem("finditUser", JSON.stringify(data.user));
-    setAuthForm(emptyAuthForm);
-    setActiveSection("report");
-    setMessage(`Welcome, ${data.user.name}.`);
-    setMessageTone("success");
   }
 
   async function handleImageChange(event) {
     const file = event.target.files?.[0];
 
     if (!file) {
-      setItemForm({ ...itemForm, imageDataUrl: "" });
+      setItemForm({ ...itemForm, imageDataUrl: "", imageFile: null });
       return;
     }
 
+    // Keep a quick preview on screen, but upload the original file to Firebase.
     const imageDataUrl = await readFileAsDataUrl(file);
-    setItemForm({ ...itemForm, imageDataUrl });
+    setItemForm({ ...itemForm, imageDataUrl, imageFile: file });
   }
 
   async function handleItemSubmit(event) {
     event.preventDefault();
     setMessage("");
-    setMessageTone("info");
 
     if (!currentUser) {
-      setMessage("Please log in before posting an item.");
-      setMessageTone("error");
+      setMessage("Please register or log in before posting an item.");
       return;
     }
 
-    setIsSaving(true);
+    try {
+      setIsSaving(true);
+      const item = await createItemReport({
+        currentUser,
+        imageFile: itemForm.imageFile,
+        report: itemForm
+      });
 
-    const response = await fetch("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...itemForm,
-        userId: currentUser.id
-      })
-    });
-    const data = await response.json();
-
-    setIsSaving(false);
-
-    if (!response.ok) {
-      setMessage(data.error || "Unable to save item.");
-      setMessageTone("error");
-      return;
+      setItems([item, ...items]);
+      setItemForm(emptyItemForm);
+      setMessage(`${item.type === "lost" ? "Lost" : "Found"} item report saved.`);
+    } catch (error) {
+      setMessage(error.message || "Unable to save item.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setItems([data.item, ...items]);
-    setItemForm(emptyItemForm);
-    setActiveSection(data.item.type === "lost" ? "lost-feed" : "campus-feed");
-    setMessage(`${data.item.type === "lost" ? "Lost" : "Found"} item report saved.`);
-    setMessageTone("success");
   }
 
-  function handleSignOut() {
-    setCurrentUser(null);
-    localStorage.removeItem("finditUser");
-    setAuthMode("login");
-    setActiveSection("report");
-    setMessage("Signed out.");
-    setMessageTone("info");
+  async function handleSignOut() {
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      setItems([]);
+      setMessage("");
+    } catch (error) {
+      setMessage(error.message || "Unable to sign out.");
+    }
+  }
+
+  function scrollToSection(event, sectionId) {
+    event.preventDefault();
+    const section = document.getElementById(sectionId);
+
+    if (!section) {
+      return;
+    }
+
+    const targetTop = section.offsetTop - 88;
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    // Keep the prototype on one page while making the tabs feel like app navigation.
+    window.history.replaceState(null, "", `#${sectionId}`);
+    window.scrollTo({
+      top: Math.max(0, Math.min(targetTop, maxScroll)),
+      behavior: "smooth"
+    });
+  }
+
+  if (!authReady) {
+    return (
+      <main className="app-shell">
+        <div className="mobile-frame auth-frame">
+          <header className="auth-hero">
+            <img className="brand-logo" src="/logo.svg" alt="FindIT" />
+            <p>Checking your session...</p>
+          </header>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className={`app-shell ${currentUser ? "" : "login-shell"}`}>
-      <section className="hero">
-        <div className="hero-copy">
-          <h1>Find<span>IT</span></h1>
-          {currentUser && (
-            <p>
-              A secure lost-and-found prototype for NUS students to report lost and found items with
-              photos, descriptions, and campus locations.
-            </p>
-          )}
-        </div>
-      </section>
-
+    <main className="app-shell">
       {!currentUser ? (
-        <section className="login-layout">
-          <AuthPanel
-            authMode={authMode}
+        <div className="mobile-frame auth-frame">
+          <header className="auth-hero">
+            <img className="brand-logo" src="/logo.svg" alt="FindIT" />
+            <p>Lost or found something on campus? Start here.</p>
+          </header>
+
+          <AuthCard
             authForm={authForm}
+            authMode={authMode}
             message={message}
-            messageTone={messageTone}
-            setAuthMode={setAuthMode}
-            updateAuthForm={updateAuthForm}
-            handleAuthSubmit={handleAuthSubmit}
+            onAuthModeChange={setAuthMode}
+            onAuthSubmit={handleAuthSubmit}
+            onFormChange={updateAuthForm}
           />
-        </section>
+        </div>
       ) : (
-        <>
-          <section className="account-bar glass-panel">
-            <div className="signed-in-card compact">
+        <div className="mobile-frame">
+        <header className="app-header">
+          <div>
+            <img className="brand-logo" src="/logo.svg" alt="FindIT" />
+          </div>
+          <a className="header-profile" href="#account" onClick={(event) => scrollToSection(event, "account")}>
+            <span>{currentUser.name.charAt(0).toUpperCase()}</span>
+          </a>
+        </header>
+
+        <section className="hero-card">
+          <p>
+            Welcome back, {currentUser.name}. Create a lost or found report, then check the campus
+            feed for matching posts.
+          </p>
+        </section>
+
+        <section className="app-content">
+          <section className="glass-panel report-panel" id="report">
+            <div className="panel-heading">
+              <p className="panel-label">Report</p>
+              <h2>Report an Item</h2>
+            </div>
+
+            <form className="report-form" onSubmit={handleItemSubmit}>
+              <div className="type-toggle">
+                <label className={itemForm.type === "lost" ? "selected" : ""}>
+                  <input
+                    type="radio"
+                    name="type"
+                    value="lost"
+                    checked={itemForm.type === "lost"}
+                    onChange={updateItemForm}
+                  />
+                  Lost item
+                </label>
+                <label className={itemForm.type === "found" ? "selected" : ""}>
+                  <input
+                    type="radio"
+                    name="type"
+                    value="found"
+                    checked={itemForm.type === "found"}
+                    onChange={updateItemForm}
+                  />
+                  Found item
+                </label>
+              </div>
+
+              <div className="form-row">
+                <label>
+                  Item name
+                  <input
+                    name="title"
+                    value={itemForm.title}
+                    onChange={updateItemForm}
+                    placeholder="AirPods Pro"
+                    required
+                  />
+                </label>
+                <label>
+                  Location
+                  <input
+                    name="location"
+                    value={itemForm.location}
+                    onChange={updateItemForm}
+                    placeholder="COM3, Level 2"
+                    required
+                  />
+                </label>
+              </div>
+
+              <label>
+                Description
+                <textarea
+                  name="description"
+                  value={itemForm.description}
+                  onChange={updateItemForm}
+                  placeholder="Add color, brand, unique marks, last seen time, or where the item is kept."
+                  rows="5"
+                  required
+                />
+              </label>
+
+              <label className="upload-box">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleImageChange}
+                  required
+                />
+                {itemForm.imageDataUrl ? (
+                  <img src={itemForm.imageDataUrl} alt="Preview of uploaded item" />
+                ) : (
+                  <span>Upload item photo</span>
+                )}
+              </label>
+
+              <button className="primary-button" disabled={isSaving} type="submit">
+                {isSaving ? "Saving..." : "Save report"}
+              </button>
+            </form>
+          </section>
+
+          <section className="feed-section" id="feed">
+            <ItemColumn title="Lost Reports" accent="blue" items={lostItems} />
+            <ItemColumn title="Found Reports" accent="orange" items={foundItems} />
+          </section>
+
+          <aside className="glass-panel account-panel" id="account">
+            <div className="panel-heading">
+              <p className="panel-label">Account</p>
+              <h2>Your Profile</h2>
+            </div>
+
+            <div className="signed-in-card">
               <div className="avatar">{currentUser.name.charAt(0).toUpperCase()}</div>
               <div>
                 <strong>{currentUser.name}</strong>
                 <p>{currentUser.email}</p>
               </div>
+              <button className="secondary-button" onClick={handleSignOut}>
+                Sign out
+              </button>
             </div>
-            <button className="secondary-button" onClick={handleSignOut}>
-              Sign out
-            </button>
-          </section>
 
-          {message && <p className={`message ${messageTone}`}>{message}</p>}
+            {message && <p className="message">{message}</p>}
+          </aside>
+        </section>
 
-          <section className="section-nav" aria-label="FindIT sections">
-            <SectionButton
-              active={activeSection === "report"}
-              count={items.length}
-              label="Report Item"
-              onClick={() => setActiveSection("report")}
-            />
-            <SectionButton
-              active={activeSection === "lost-feed"}
-              count={lostItems.length}
-              label="Lost Item Feed"
-              onClick={() => setActiveSection("lost-feed")}
-            />
-            <SectionButton
-              active={activeSection === "campus-feed"}
-              count={items.length}
-              label="Campus Feed"
-              onClick={() => setActiveSection("campus-feed")}
-            />
-          </section>
-
-          <section className="active-view">
-            {activeSection === "report" && (
-              <ReportPanel
-                itemForm={itemForm}
-                isSaving={isSaving}
-                updateItemForm={updateItemForm}
-                handleImageChange={handleImageChange}
-                handleItemSubmit={handleItemSubmit}
-              />
-            )}
-            {activeSection === "lost-feed" && (
-              <ItemColumn title="Lost Item Feed" label="Lost reports" accent="blue" items={lostItems} />
-            )}
-            {activeSection === "campus-feed" && (
-              <ItemColumn title="Campus Feed" label="All campus reports" accent="orange" items={items} />
-            )}
-          </section>
-        </>
+        <nav className="bottom-tabs" aria-label="Primary">
+          <a className="primary-tab" href="#report" onClick={(event) => scrollToSection(event, "report")}>
+            Report
+          </a>
+          <a href="#feed" onClick={(event) => scrollToSection(event, "feed")}>
+            Feed
+          </a>
+          <a href="#account" onClick={(event) => scrollToSection(event, "account")}>
+            Account
+          </a>
+        </nav>
+      </div>
       )}
     </main>
   );
 }
 
-function AuthPanel({
-  authMode,
-  authForm,
-  message,
-  messageTone,
-  setAuthMode,
-  updateAuthForm,
-  handleAuthSubmit
-}) {
+function AuthCard({ authForm, authMode, message, onAuthModeChange, onAuthSubmit, onFormChange }) {
   return (
-    <aside className="glass-panel auth-panel">
+    <section className="glass-panel auth-card">
       <div className="panel-heading">
-        <p className="panel-label">Step 1</p>
-        <h2>Student Login</h2>
+        <p className="panel-label">Get Started</p>
+        <h2>{authMode === "register" ? "Create Account" : "Log In"}</h2>
       </div>
 
       <div className="segmented-control" aria-label="Choose authentication mode">
         <button
-          className={authMode === "login" ? "active" : ""}
-          onClick={() => setAuthMode("login")}
-          type="button"
-        >
-          Login
-        </button>
-        <button
           className={authMode === "register" ? "active" : ""}
-          onClick={() => setAuthMode("register")}
+          onClick={() => onAuthModeChange("register")}
           type="button"
         >
           Register
         </button>
+        <button
+          className={authMode === "login" ? "active" : ""}
+          onClick={() => onAuthModeChange("login")}
+          type="button"
+        >
+          Login
+        </button>
       </div>
 
-      <form className="stacked-form" onSubmit={handleAuthSubmit}>
+      <form className="stacked-form" onSubmit={onAuthSubmit}>
         {authMode === "register" && (
           <label>
             Name
             <input
               name="name"
               value={authForm.name}
-              onChange={updateAuthForm}
-              placeholder="Shounak"
+              onChange={onFormChange}
+              placeholder="Your Name"
               required
             />
           </label>
@@ -286,8 +390,8 @@ function AuthPanel({
             name="email"
             type="email"
             value={authForm.email}
-            onChange={updateAuthForm}
-            placeholder="e0123456@u.nus.edu"
+            onChange={onFormChange}
+            placeholder="exxxxxxx@u.nus.edu"
             required
           />
         </label>
@@ -297,7 +401,7 @@ function AuthPanel({
             name="password"
             type="password"
             value={authForm.password}
-            onChange={updateAuthForm}
+            onChange={onFormChange}
             placeholder={authMode === "register" ? "Choose a password" : "Enter your password"}
             required
           />
@@ -307,109 +411,16 @@ function AuthPanel({
         </button>
       </form>
 
-      {message && <p className={`message ${messageTone}`}>{message}</p>}
-    </aside>
-  );
-}
-
-function SectionButton({ active, count, label, onClick }) {
-  return (
-    <button className={`section-card ${active ? "active" : ""}`} onClick={onClick} type="button">
-      <span>{label}</span>
-      <strong>{count}</strong>
-    </button>
-  );
-}
-
-function ReportPanel({ itemForm, isSaving, updateItemForm, handleImageChange, handleItemSubmit }) {
-  return (
-    <section className="glass-panel report-panel">
-      <div className="panel-heading">
-        <p className="panel-label">Step 2</p>
-        <h2>Report an Item</h2>
-      </div>
-
-      <form className="report-form" onSubmit={handleItemSubmit}>
-        <div className="type-toggle">
-          <label className={itemForm.type === "lost" ? "selected" : ""}>
-            <input
-              type="radio"
-              name="type"
-              value="lost"
-              checked={itemForm.type === "lost"}
-              onChange={updateItemForm}
-            />
-            Lost item
-          </label>
-          <label className={itemForm.type === "found" ? "selected" : ""}>
-            <input
-              type="radio"
-              name="type"
-              value="found"
-              checked={itemForm.type === "found"}
-              onChange={updateItemForm}
-            />
-            Found item
-          </label>
-        </div>
-
-        <div className="form-row">
-          <label>
-            Item name
-            <input
-              name="title"
-              value={itemForm.title}
-              onChange={updateItemForm}
-              placeholder="AirPods Pro"
-              required
-            />
-          </label>
-          <label>
-            Location
-            <input
-              name="location"
-              value={itemForm.location}
-              onChange={updateItemForm}
-              placeholder="COM3, Level 2"
-              required
-            />
-          </label>
-        </div>
-
-        <label>
-          Description
-          <textarea
-            name="description"
-            value={itemForm.description}
-            onChange={updateItemForm}
-            placeholder="Add color, brand, unique marks, last seen time, or where the item is kept."
-            rows="5"
-            required
-          />
-        </label>
-
-        <label className="upload-box">
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImageChange} />
-          {itemForm.imageDataUrl ? (
-            <img src={itemForm.imageDataUrl} alt="Preview of uploaded item" />
-          ) : (
-            <span>Upload item photo</span>
-          )}
-        </label>
-
-        <button className="primary-button" disabled={isSaving} type="submit">
-          {isSaving ? "Saving..." : "Save report"}
-        </button>
-      </form>
+      {message && <p className="message">{message}</p>}
     </section>
   );
 }
 
-function ItemColumn({ title, label, accent, items }) {
+function ItemColumn({ title, accent, items }) {
   return (
     <section className={`glass-panel item-column ${accent}`}>
       <div className="panel-heading">
-        <p className="panel-label">{label}</p>
+        <p className="panel-label">Campus feed</p>
         <h2>{title}</h2>
       </div>
       <div className="item-list">
