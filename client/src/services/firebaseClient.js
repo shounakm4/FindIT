@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
   updateProfile
@@ -16,7 +17,8 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc
+  setDoc,
+  updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 
@@ -60,7 +62,8 @@ function publicUser(user) {
   return {
     id: user.uid,
     name: user.displayName || user.email.split("@")[0],
-    email: user.email
+    email: user.email,
+    emailVerified: user.emailVerified
   };
 }
 
@@ -85,7 +88,16 @@ export function subscribeToAuth(callback, onError) {
     const { auth } = ensureFirebase();
     return onAuthStateChanged(
       auth,
-      (user) => callback(user ? publicUser(user) : null),
+      (user) => {
+        if (user && !user.emailVerified) {
+          onError("Please verify your NUS email before using FindIT.");
+          signOut(auth);
+          callback(null);
+          return;
+        }
+
+        callback(user ? publicUser(user) : null);
+      },
       (error) => onError(mapFirebaseError(error))
     );
   } catch (error) {
@@ -104,15 +116,19 @@ export async function registerUser({ name, email, password }) {
     const { auth, db } = ensureFirebase();
     const credential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     await updateProfile(credential.user, { displayName: name.trim() });
+    await sendEmailVerification(credential.user);
     await setDoc(doc(db, "users", credential.user.uid), {
       name: name.trim(),
       email: credential.user.email,
+      emailVerified: false,
       createdAt: serverTimestamp()
     });
+
+    await signOut(auth);
+
     return {
-      id: credential.user.uid,
-      name: name.trim(),
-      email: credential.user.email
+      email: credential.user.email,
+      verificationSent: true
     };
   } catch (error) {
     throw new Error(mapFirebaseError(error));
@@ -121,9 +137,49 @@ export async function registerUser({ name, email, password }) {
 
 export async function loginUser({ email, password }) {
   try {
+    const { auth, db } = ensureFirebase();
+    const credential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+
+    if (!credential.user.emailVerified) {
+      await sendEmailVerification(credential.user);
+      await signOut(auth);
+      throw new Error("Please verify your NUS email. We sent another verification link to your inbox.");
+    }
+
+    await updateDoc(doc(db, "users", credential.user.uid), {
+      emailVerified: true
+    });
+
+    return publicUser(credential.user);
+  } catch (error) {
+    throw new Error(mapFirebaseError(error));
+  }
+}
+
+export async function resendVerificationEmail({ email, password }) {
+  if (!isNusEmail(email)) {
+    throw new Error("Please use your NUS email address.");
+  }
+
+  try {
     const { auth } = ensureFirebase();
     const credential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-    return publicUser(credential.user);
+
+    if (credential.user.emailVerified) {
+      await signOut(auth);
+      return {
+        alreadyVerified: true,
+        email: credential.user.email
+      };
+    }
+
+    await sendEmailVerification(credential.user);
+    await signOut(auth);
+
+    return {
+      email: credential.user.email,
+      verificationSent: true
+    };
   } catch (error) {
     throw new Error(mapFirebaseError(error));
   }
@@ -143,6 +199,19 @@ export async function fetchItems() {
       id: itemDoc.id,
       ...item,
       createdAt: item.createdAt?.toDate?.().toISOString?.() || item.createdAt || new Date().toISOString()
+    };
+  });
+}
+
+export async function fetchClaims(itemId) {
+  const { db } = ensureFirebase();
+  const snapshot = await getDocs(query(collection(db, "items", itemId, "claims"), orderBy("createdAt", "desc")));
+  return snapshot.docs.map((claimDoc) => {
+    const claim = claimDoc.data();
+    return {
+      id: claimDoc.id,
+      ...claim,
+      createdAt: claim.createdAt?.toDate?.().toISOString?.() || claim.createdAt || new Date().toISOString()
     };
   });
 }
@@ -167,6 +236,8 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     location: report.location.trim(),
     imageUrl,
     imagePath,
+    imageSignature: report.imageSignature || null,
+    searchKeywords: report.searchKeywords || [],
     status: "open",
     userId: currentUser.id,
     userName: currentUser.name,
@@ -180,5 +251,61 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     id: docRef.id,
     ...item,
     createdAt: new Date().toISOString()
+  };
+}
+
+export async function createClaim({ item, currentUser, claim }) {
+  if (item.userId === currentUser.id) {
+    throw new Error("You cannot claim your own report.");
+  }
+
+  if (!claim.message.trim() || !claim.contact.trim()) {
+    throw new Error("Please add a message and contact details.");
+  }
+
+  const { db } = ensureFirebase();
+  const claimBody = {
+    itemId: item.id,
+    itemOwnerId: item.userId,
+    claimantId: currentUser.id,
+    claimantName: currentUser.name,
+    claimantEmail: currentUser.email,
+    message: claim.message.trim(),
+    contact: claim.contact.trim(),
+    status: "open",
+    createdAt: serverTimestamp()
+  };
+
+  const claimRef = await addDoc(collection(db, "items", item.id, "claims"), claimBody);
+
+  return {
+    id: claimRef.id,
+    ...claimBody,
+    createdAt: new Date().toISOString()
+  };
+}
+
+export async function resolveItem({ item, currentUser }) {
+  if (item.userId !== currentUser.id) {
+    throw new Error("Only the reporter can resolve this item.");
+  }
+
+  const { db } = ensureFirebase();
+  const itemRef = doc(db, "items", item.id);
+  const updates = {
+    status: "resolved",
+    resolvedAt: serverTimestamp(),
+    resolvedBy: currentUser.id,
+    updatedAt: serverTimestamp()
+  };
+
+  await updateDoc(itemRef, updates);
+
+  return {
+    ...item,
+    status: "resolved",
+    resolvedAt: new Date().toISOString(),
+    resolvedBy: currentUser.id,
+    updatedAt: new Date().toISOString()
   };
 }
