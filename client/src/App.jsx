@@ -22,6 +22,7 @@ import {
 } from "./services/firebaseClient.js";
 import { createImageSignature, readFileAsDataUrl } from "./utils/imageFiles.js";
 import {
+  buildMatchAttributes,
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,
@@ -212,6 +213,7 @@ function App() {
         imageFile: itemForm.imageFile,
         report: {
           ...itemForm,
+          matchAttributes: buildMatchAttributes(itemForm),
           searchKeywords: buildSearchKeywords(itemForm)
         }
       });

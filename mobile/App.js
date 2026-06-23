@@ -20,6 +20,13 @@ const sampleReports = [
       { text: "Fashion accessory", confidence: 0.62 }
     ],
     imageSignature: { averageColor: { r: 32, g: 30, b: 28 } },
+    matchAttributes: {
+      category: "wallet",
+      colors: ["black"],
+      materials: [],
+      brands: [],
+      identifiers: ["student card"]
+    },
     searchKeywords: ["black", "wallet", "student", "card", "central", "library"]
   },
   {
@@ -35,7 +42,14 @@ const sampleReports = [
       { text: "Fashion accessory", confidence: 0.59 }
     ],
     imageSignature: { averageColor: { r: 35, g: 32, b: 29 } },
-    searchKeywords: ["wallet", "dark", "central", "library", "entrance"]
+    matchAttributes: {
+      category: "wallet",
+      colors: ["black"],
+      materials: [],
+      brands: [],
+      identifiers: []
+    },
+    searchKeywords: ["wallet", "black", "central", "library", "entrance"]
   }
 ];
 

@@ -9,6 +9,8 @@
     "dev:server": "node server/index.js",
     "dev:client": "vite --host 127.0.0.1 --config client/vite.config.js",
     "start": "node server/index.js",
+    "test": "npm run test:matching",
+    "test:matching": "node --test shared/matching.test.js",
     "build": "vite build --config client/vite.config.js",
     "preview": "vite preview --host 127.0.0.1 --config client/vite.config.js",
     "mobile:start": "npm --prefix mobile start",

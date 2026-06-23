@@ -237,6 +237,7 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     imageUrl,
     imagePath,
     imageSignature: report.imageSignature || null,
+    matchAttributes: report.matchAttributes || null,
     searchKeywords: report.searchKeywords || [],
     status: "open",
     userId: currentUser.id,
