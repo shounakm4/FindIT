@@ -12,11 +12,17 @@ export async function createImageSignature(imageDataUrl) {
   let green = 0;
   let blue = 0;
   let count = 0;
+  const colorGrid = [];
 
   for (let index = 0; index < data.length; index += 4) {
-    red += data[index];
-    green += data[index + 1];
-    blue += data[index + 2];
+    const pixelRed = data[index];
+    const pixelGreen = data[index + 1];
+    const pixelBlue = data[index + 2];
+
+    red += pixelRed;
+    green += pixelGreen;
+    blue += pixelBlue;
+    colorGrid.push(quantizeColor(pixelRed), quantizeColor(pixelGreen), quantizeColor(pixelBlue));
     count += 1;
   }
 
@@ -25,7 +31,8 @@ export async function createImageSignature(imageDataUrl) {
       r: Math.round(red / count),
       g: Math.round(green / count),
       b: Math.round(blue / count)
-    }
+    },
+    colorGrid
   };
 }
 
@@ -45,4 +52,8 @@ function loadImage(src) {
     image.onerror = reject;
     image.src = src;
   });
+}
+
+function quantizeColor(value) {
+  return Math.min(7, Math.floor(value / 32));
 }

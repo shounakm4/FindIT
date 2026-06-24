@@ -95,7 +95,7 @@ exports.analyzeImage = onCall(
       }
 
       const result = await response.json();
-      const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const responseText = result.output_text || result.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonText = responseText
         .trim()
         .replace(/^```(?:json)?\s*/i, "")
@@ -131,10 +131,22 @@ exports.analyzeImage = onCall(
 );
 
 function imageSignatureKey(signature) {
-  if (!signature || !signature.averageColor) {
+  if (!signature) {
     return "";
   }
 
-  const { r, g, b } = signature.averageColor;
-  return `${r}-${g}-${b}`;
+  if (typeof signature.perceptualHash === "string" && signature.perceptualHash) {
+    return signature.perceptualHash;
+  }
+
+  if (Array.isArray(signature.colorGrid)) {
+    return signature.colorGrid.map((pixel) => (Array.isArray(pixel) ? pixel.join("-") : String(pixel))).join(".");
+  }
+
+  if (signature.averageColor) {
+    const { r, g, b } = signature.averageColor;
+    return `${r}-${g}-${b}`;
+  }
+
+  return "";
 }

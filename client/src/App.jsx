@@ -31,7 +31,8 @@ import {
   calculateMatchScore,
   filterAndSortItems,
   findMatchSuggestions,
-  findTopMatchForUser
+  findTopMatchForUser,
+  getMatchReasons
 } from "./utils/matching.js";
 
 function App() {
@@ -62,6 +63,21 @@ function App() {
   const filteredItems = useMemo(() => filterAndSortItems(items, feedFilters), [feedFilters, items]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
   const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
+  const highConfidenceMatches = useMemo(() => {
+    if (selectedItem?.type !== "lost") {
+      return [];
+    }
+
+    return items
+      .filter((item) => item.id !== selectedItem.id && item.type === "found" && (item.status || "open") === "open")
+      .map((candidate) => ({
+        item: candidate,
+        score: calculateMatchScore(selectedItem, candidate),
+        reasons: getMatchReasons(selectedItem, candidate)
+      }))
+      .filter((match) => match.score > 65)
+      .sort((a, b) => b.score - a.score);
+  }, [items, selectedItem]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -220,11 +236,22 @@ function App() {
 
     try {
       setIsSaving(true);
-      const imageLabels = await analyzeImageWithGemini({
-        imageDataUrl: itemForm.imageDataUrl,
-        imageSignature: itemForm.imageSignature,
-        description: itemForm.description
-      });
+      const itemSignatureKey = imageSignatureKey(itemForm.imageSignature);
+      const matchingImageLabels = items.find(
+        (item) =>
+          itemSignatureKey &&
+          imageSignatureKey(item.imageSignature) === itemSignatureKey &&
+          item.imageLabels?.length
+      )?.imageLabels;
+      const imageLabels =
+        matchingImageLabels ||
+        (await analyzeImageWithGemini({
+          imageDataUrl: itemForm.imageDataUrl,
+          imageSignature: itemForm.imageSignature,
+          description: itemForm.description
+        }));
+
+      // Store searchable words with the report so the matching feature does not depend only on the visible text.
       const item = await createItemReport({
         currentUser,
         imageFile: itemForm.imageFile,
@@ -431,6 +458,7 @@ function App() {
                 claimForm={claimForm}
                 claims={selectedClaims}
                 currentUser={currentUser}
+                highConfidenceMatches={highConfidenceMatches}
                 isClaimSaving={isClaimSaving}
                 isResolving={isResolving}
                 item={selectedItem}
@@ -461,6 +489,27 @@ function App() {
       )}
     </main>
   );
+}
+
+function imageSignatureKey(signature) {
+  if (!signature) {
+    return "";
+  }
+
+  if (signature.perceptualHash) {
+    return signature.perceptualHash;
+  }
+
+  if (Array.isArray(signature.colorGrid)) {
+    return signature.colorGrid.map((pixel) => (Array.isArray(pixel) ? pixel.join("-") : String(pixel))).join(".");
+  }
+
+  if (signature.averageColor) {
+    const { r, g, b } = signature.averageColor;
+    return `${r}-${g}-${b}`;
+  }
+
+  return "";
 }
 
 export default App;

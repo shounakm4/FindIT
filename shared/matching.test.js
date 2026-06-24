@@ -11,10 +11,23 @@ import {
 } from "./matching.js";
 
 const createdAt = "2026-06-23T08:00:00.000Z";
-const sameImageSignature = { averageColor: { r: 40, g: 42, b: 38 } };
-const differentImageSignature = { averageColor: { r: 230, g: 232, b: 235 } };
-const darkWalletSignature = { averageColor: { r: 90, g: 88, b: 84 } };
-const darkPowerbankSignature = { averageColor: { r: 40, g: 42, b: 38 } };
+const sameColorGrid = Array.from({ length: 256 }).flatMap(() => [1, 1, 1]);
+const sameImageSignature = {
+  averageColor: { r: 40, g: 42, b: 38 },
+  colorGrid: sameColorGrid
+};
+const differentImageSignature = {
+  averageColor: { r: 230, g: 232, b: 235 },
+  colorGrid: Array.from({ length: 256 }).flatMap(() => [7, 7, 7])
+};
+const darkWalletSignature = {
+  averageColor: { r: 44, g: 42, b: 39 },
+  colorGrid: Array.from({ length: 256 }).flatMap((_, index) => (index % 4 === 0 ? [7, 7, 7] : [1, 1, 1]))
+};
+const darkPowerbankSignature = {
+  averageColor: { r: 40, g: 42, b: 38 },
+  colorGrid: Array.from({ length: 256 }).flatMap((_, index) => (index % 5 === 0 ? [0, 0, 0] : [2, 2, 2]))
+};
 
 function report(overrides) {
   return {
@@ -140,6 +153,64 @@ describe("smarter matching", () => {
     assert.deepEqual(findMatchSuggestions([lostPowerbank, foundPhone], lostPowerbank), []);
   });
 
+  it("treats the same image as a high-confidence match even when Gemini labels are unavailable", () => {
+    const lostPowerbank = report({
+      id: "lost-powerbank",
+      type: "lost",
+      title: "Black Powerbank",
+      description: "20000mAh, with white wire",
+      location: "COM 3",
+      imageSignature: sameImageSignature
+    });
+    const foundPowerbank = report({
+      id: "found-powerbank",
+      type: "found",
+      title: "Power Bank Black",
+      description: "Had a white cable",
+      location: "Com 3",
+      imageSignature: sameImageSignature
+    });
+
+    assert.ok(calculateMatchScore(lostPowerbank, foundPowerbank) >= 65);
+    assert.deepEqual(findMatchSuggestions([lostPowerbank, foundPowerbank], lostPowerbank).map(({ item }) => item.id), [
+      "found-powerbank"
+    ]);
+  });
+
+  it("does not give the same-image score to a report with the wrong item category", () => {
+    const lostPowerbank = report({
+      id: "lost-powerbank",
+      type: "lost",
+      title: "Black Powerbank",
+      description: "20000mAh, with white wire",
+      location: "COM 3",
+      imageSignature: sameImageSignature
+    });
+    const foundWallet = report({
+      id: "found-wallet",
+      type: "found",
+      title: "Black wallet",
+      description: "Had a white cable",
+      location: "COM 3",
+      imageSignature: sameImageSignature
+    });
+    const foundPowerbank = report({
+      id: "found-powerbank",
+      type: "found",
+      title: "Power Bank Black",
+      description: "Had a white cable",
+      location: "COM 3",
+      imageSignature: sameImageSignature
+    });
+
+    const wrongCategoryScore = calculateMatchScore(lostPowerbank, foundWallet);
+    const correctCategoryScore = calculateMatchScore(lostPowerbank, foundPowerbank);
+
+    assert.ok(wrongCategoryScore < 65, `expected wrong category below high confidence, got ${wrongCategoryScore}`);
+    assert.ok(correctCategoryScore >= 65, `expected correct category high confidence, got ${correctCategoryScore}`);
+    assert.ok(correctCategoryScore > wrongCategoryScore);
+  });
+
   it("does not treat two different dark rectangular objects as the same image", () => {
     const lostPowerbank = report({
       id: "lost-powerbank",
@@ -159,6 +230,36 @@ describe("smarter matching", () => {
     });
 
     assert.ok(calculateMatchScore(lostPowerbank, foundWallet) < 65);
+  });
+
+  it("caps identical text when image labels clearly disagree", () => {
+    const lostWallet = report({
+      id: "lost-wallet",
+      type: "lost",
+      title: "Black wallet",
+      description: "Black leather wallet with NUS student card",
+      location: "Central Library",
+      imageLabels: [
+        { text: "wallet", confidence: 0.96 },
+        { text: "black", confidence: 0.9 },
+        { text: "leather", confidence: 0.86 }
+      ]
+    });
+    const foundUmbrella = report({
+      id: "found-umbrella",
+      type: "found",
+      title: "Black wallet",
+      description: "Black leather wallet with NUS student card",
+      location: "Central Library",
+      imageLabels: [
+        { text: "umbrella", confidence: 0.96 },
+        { text: "red", confidence: 0.92 },
+        { text: "fabric", confidence: 0.82 }
+      ]
+    });
+
+    assert.ok(calculateMatchScore(lostWallet, foundUmbrella) < 25);
+    assert.deepEqual(findMatchSuggestions([lostWallet, foundUmbrella], lostWallet), []);
   });
 
   it("does not mark text-only matches as high confidence when image labels are missing", () => {
