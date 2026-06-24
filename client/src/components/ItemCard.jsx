@@ -17,7 +17,7 @@ export function ItemCard({ item, matchScore, onSelect }) {
         {typeof matchScore === "number" && matchScore > 0 && (
           <div className="match-meter">
             <span style={{ width: `${matchScore}%` }} />
-            <b>{getMatchConfidence(matchScore)} · {matchScore}%</b>
+            <b>{getMatchConfidence(matchScore)} match <em>{matchScore}%</em></b>
           </div>
         )}
       </div>

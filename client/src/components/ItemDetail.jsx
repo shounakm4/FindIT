@@ -128,7 +128,7 @@ export function ItemDetail({
                   <strong>{match.title}</strong>
                   <small>{reasons.length ? reasons.join(", ") : match.location}</small>
                 </span>
-                <b>{getMatchConfidence(score)} · {score}%</b>
+                <b>{getMatchConfidence(score)} match <em>{score}%</em></b>
               </button>
             ))
           )}

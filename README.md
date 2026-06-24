@@ -52,7 +52,7 @@ touch .env
 
 Fill in `.env` with the Firebase Web app config from the Firebase console.
 
-Start the backend and frontend together:
+Start the app:
 
 ```bash
 npm run dev
@@ -64,8 +64,7 @@ Open the app at:
 http://localhost:5173
 ```
 
-The old local backend still runs at `http://localhost:3001`, but auth, reports, and images now
-go through Firebase from the React app.
+Auth, reports, and images all go through Firebase, so there is no separate backend to run.
 
 ## Firebase Hosting
 
@@ -153,11 +152,9 @@ client/               React frontend
   public/             App manifest and icon for PWA-style mobile preview
 mobile/              Expo React Native app foundation
 shared/              Cross-platform matching helpers
-server/              Old Node/Express backend from the first proof of concept
-  index.js           Previous API routes, password hashing, and local storage
-  data/users.json    Local user database
-  data/items.json    Local item report database
-  uploads/           Uploaded item photos
+functions/          Firebase Cloud Functions
+  index.js           Labels new report photos with Gemini
+  labelImage.js      The Gemini image-labelling call
 docs/                Learning notes and GitHub guide
 firebase.json        Firebase Hosting, Firestore rules, and Storage rules setup
 .firebaserc          Firebase project selection for deploys

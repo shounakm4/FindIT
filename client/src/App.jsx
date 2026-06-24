@@ -219,7 +219,9 @@ function App() {
       setItems([item, ...items]);
       setItemForm(emptyItemForm);
       setSelectedItemId(item.id);
-      setMessage(`${item.type === "lost" ? "Lost" : "Found"} item report saved.`);
+      setMessage(
+        `${item.type === "lost" ? "Lost" : "Found"} item report saved. We are checking the photo for possible matches.`
+      );
     } catch (error) {
       setMessage(error.message || "Unable to save item.");
     } finally {
@@ -353,7 +355,12 @@ function App() {
               <FeedControls filters={feedFilters} onChange={updateFeedFilters} />
               <div className="item-list">
                 {filteredItems.length === 0 ? (
-                  <p className="empty-state">No matching reports.</p>
+                  <div className="empty-state feed-empty">
+                    <p>No reports match your search yet.</p>
+                    <a className="secondary-button" href="#report" onClick={(event) => scrollToSection(event, "report")}>
+                      Report an item
+                    </a>
+                  </div>
                 ) : (
                   filteredItems.map((item) => (
                     <ItemCard
@@ -385,7 +392,7 @@ function App() {
             <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />
           </section>
 
-          <BottomTabs onNavigate={scrollToSection} />
+          <BottomTabs hasSelection={Boolean(selectedItem)} onNavigate={scrollToSection} />
         </div>
       )}
     </main>

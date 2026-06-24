@@ -395,6 +395,20 @@ textarea {
   gap: 12px;
 }
 
+.feed-empty {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px dashed rgba(0, 61, 124, 0.24);
+  border-radius: 18px;
+}
+
+.feed-empty .secondary-button {
+  padding: 10px 16px;
+  text-decoration: none;
+}
+
 .feed-controls {
   display: grid;
   gap: 14px;
@@ -471,8 +485,12 @@ textarea {
   text-transform: uppercase;
 }
 
+.status-pill.open {
+  background: #1f8a4c;
+}
+
 .status-pill.resolved {
-  background: #65758b;
+  background: #41506a;
 }
 
 .match-meter {
@@ -497,6 +515,14 @@ textarea {
   padding: 3px 9px;
   color: var(--ink);
   font-size: 0.72rem;
+}
+
+.match-meter b em,
+.match-card b em {
+  margin-left: 4px;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 700;
 }
 
 .detail-panel {
@@ -630,6 +656,18 @@ textarea {
 .bottom-tabs .primary-tab {
   color: white;
   background: linear-gradient(135deg, var(--blue), var(--orange));
+}
+
+.bottom-tabs .disabled-tab {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border-radius: 16px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (min-width: 900px) {
