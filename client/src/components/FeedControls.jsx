@@ -1,4 +1,8 @@
-export function FeedControls({ filters, onChange }) {
+import { itemCategories } from "../constants/forms.js";
+
+export function FeedControls({ filters, onChange, onSelectCategory }) {
+  const categories = ["all", ...itemCategories];
+
   return (
     <div className="feed-controls">
       <div className="panel-heading">
@@ -10,6 +14,19 @@ export function FeedControls({ filters, onChange }) {
         Search
         <input name="query" value={filters.query} onChange={onChange} placeholder="wallet, AirPods, COM3..." />
       </label>
+
+      <div className="category-chips">
+        {categories.map((category) => (
+          <button
+            className={`chip ${filters.category === category ? "active" : ""}`}
+            key={category}
+            onClick={() => onSelectCategory(category)}
+            type="button"
+          >
+            {category === "all" ? "All" : category}
+          </button>
+        ))}
+      </div>
 
       <div className="filter-grid">
         <label>

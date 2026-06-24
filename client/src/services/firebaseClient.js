@@ -234,6 +234,7 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     title: report.title.trim(),
     description: report.description.trim(),
     location: report.location.trim(),
+    category: report.category || "Other",
     imageUrl,
     imagePath,
     imageSignature: report.imageSignature || null,

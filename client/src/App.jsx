@@ -7,6 +7,7 @@ import { FeedControls } from "./components/FeedControls.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
 import { ItemDetail } from "./components/ItemDetail.jsx";
+import { MatchScreen } from "./components/MatchScreen.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
@@ -49,6 +50,7 @@ function App() {
   const [feedFilters, setFeedFilters] = useState(defaultFeedFilters);
   const [screen, setScreen] = useState("feed");
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [activeMatch, setActiveMatch] = useState(null);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedItemId) || null,
@@ -132,6 +134,10 @@ function App() {
       ...feedFilters,
       [event.target.name]: event.target.value
     });
+  }
+
+  function selectCategory(category) {
+    setFeedFilters({ ...feedFilters, category });
   }
 
   async function handleAuthSubmit(event) {
@@ -296,6 +302,15 @@ function App() {
     setScreen("detail");
   }
 
+  function openMatchScreen() {
+    if (!topMatch) {
+      return;
+    }
+
+    setActiveMatch(topMatch);
+    setScreen("match");
+  }
+
   function startReport(type) {
     setItemForm({ ...emptyItemForm, type });
     setReportSheetOpen(false);
@@ -359,7 +374,7 @@ function App() {
                 </section>
 
                 {topMatch && (
-                  <button className="match-hero" onClick={() => openItem(topMatch.item.id)} type="button">
+                  <button className="match-hero" onClick={openMatchScreen} type="button">
                     <span className="match-hero-label">Possible match</span>
                     <strong>A {topMatch.item.title} may match your report</strong>
                     <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
@@ -368,7 +383,7 @@ function App() {
                 )}
 
                 <section className="glass-panel feed-panel">
-                  <FeedControls filters={feedFilters} onChange={updateFeedFilters} />
+                  <FeedControls filters={feedFilters} onChange={updateFeedFilters} onSelectCategory={selectCategory} />
                   <div className="item-list">
                     {filteredItems.length === 0 ? (
                       <div className="empty-state feed-empty">
@@ -419,6 +434,14 @@ function App() {
                 onClaimSubmit={handleClaimSubmit}
                 onResolve={handleResolveItem}
                 onSelectItem={openItem}
+              />
+            )}
+
+            {screen === "match" && activeMatch && (
+              <MatchScreen
+                match={activeMatch}
+                onClaim={() => openItem(activeMatch.item.id)}
+                onDismiss={() => setScreen("feed")}
               />
             )}
 

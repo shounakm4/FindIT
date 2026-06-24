@@ -1,3 +1,5 @@
+import { itemCategories } from "../constants/forms.js";
+
 export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubmit }) {
   return (
     <section className="glass-panel report-panel" id="report">
@@ -40,6 +42,15 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
             <input name="location" value={itemForm.location} onChange={onChange} placeholder="COM3, Level 2" required />
           </label>
         </div>
+
+        <label>
+          Category
+          <select name="category" value={itemForm.category} onChange={onChange}>
+            {itemCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
 
         <label>
           Description

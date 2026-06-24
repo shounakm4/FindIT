@@ -25,10 +25,11 @@ export function filterAndSortItems(items, filters) {
   return sortedItems.filter((item) => {
     const matchesType = filters.type === "all" || item.type === filters.type;
     const matchesStatus = filters.status === "all" || (item.status || "open") === filters.status;
+    const matchesCategory = filters.category === "all" || item.category === filters.category;
     const searchable = `${item.title} ${item.description} ${item.location} ${item.userName}`.toLowerCase();
     const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
 
-    return matchesType && matchesStatus && matchesQuery;
+    return matchesType && matchesStatus && matchesCategory && matchesQuery;
   });
 }
 
@@ -104,11 +105,14 @@ export function calculateMatchScore(baseItem, candidate) {
   const labelScore = labelSimilarityScore(baseItem.imageLabels, candidate.imageLabels);
   const imageScore = imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature);
   const timeScore = timeProximityScore(baseItem.createdAt, candidate.createdAt);
+  const categoryScore = sameCategory(baseItem, candidate) ? 1 : 0;
   const statusBoost = (baseItem.status || "open") === "open" && (candidate.status || "open") === "open" ? 6 : 0;
 
   return Math.min(
     99,
-    Math.round(textScore * 34 + locationScore * 18 + labelScore * 24 + imageScore * 14 + timeScore * 10 + statusBoost)
+    Math.round(
+      textScore * 30 + locationScore * 16 + labelScore * 22 + imageScore * 12 + categoryScore * 12 + timeScore * 8 + statusBoost
+    )
   );
 }
 
@@ -120,6 +124,10 @@ export function getMatchReasons(baseItem, candidate) {
   const candidateTokens = candidate.searchKeywords?.length
     ? candidate.searchKeywords
     : tokenize(`${candidate.title} ${candidate.description} ${candidate.location}`);
+
+  if (sameCategory(baseItem, candidate)) {
+    reasons.push("same category");
+  }
 
   if (jaccardScore(baseTokens, candidateTokens) >= 0.25) {
     reasons.push("similar description");
@@ -142,6 +150,10 @@ export function getMatchReasons(baseItem, candidate) {
   }
 
   return reasons.slice(0, 3);
+}
+
+function sameCategory(baseItem, candidate) {
+  return Boolean(baseItem.category) && baseItem.category === candidate.category;
 }
 
 function tokenize(value) {
