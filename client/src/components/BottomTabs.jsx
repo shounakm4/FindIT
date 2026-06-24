@@ -1,24 +1,19 @@
-export function BottomTabs({ hasSelection, onNavigate }) {
+import { Icon } from "./Icon.jsx";
+
+export function BottomTabs({ active, onReport, onTab }) {
   return (
     <nav className="bottom-tabs" aria-label="Primary">
-      <a className="primary-tab" href="#report" onClick={(event) => onNavigate(event, "report")}>
-        Report
-      </a>
-      <a href="#feed" onClick={(event) => onNavigate(event, "feed")}>
-        Feed
-      </a>
-      {hasSelection ? (
-        <a href="#detail" onClick={(event) => onNavigate(event, "detail")}>
-          Detail
-        </a>
-      ) : (
-        <span className="disabled-tab" aria-disabled="true">
-          Detail
-        </span>
-      )}
-      <a href="#account" onClick={(event) => onNavigate(event, "account")}>
-        Account
-      </a>
+      <button className={`tab ${active === "feed" ? "active" : ""}`} onClick={() => onTab("feed")} type="button">
+        <Icon name="feed" />
+        <span>Feed</span>
+      </button>
+      <button className="tab-fab" onClick={onReport} type="button" aria-label="Report an item">
+        <Icon name="plus" size={26} />
+      </button>
+      <button className={`tab ${active === "account" ? "active" : ""}`} onClick={() => onTab("account")} type="button">
+        <Icon name="account" />
+        <span>Account</span>
+      </button>
     </nav>
   );
 }

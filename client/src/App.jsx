@@ -4,9 +4,11 @@ import { AppHeader } from "./components/AppHeader.jsx";
 import { AuthCard } from "./components/AuthCard.jsx";
 import { BottomTabs } from "./components/BottomTabs.jsx";
 import { FeedControls } from "./components/FeedControls.jsx";
+import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
 import { ItemDetail } from "./components/ItemDetail.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
+import { ReportSheet } from "./components/ReportSheet.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
   createClaim,
@@ -45,6 +47,8 @@ function App() {
   const [isResolving, setIsResolving] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [feedFilters, setFeedFilters] = useState(defaultFeedFilters);
+  const [screen, setScreen] = useState("feed");
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedItemId) || null,
@@ -221,6 +225,7 @@ function App() {
       setItems([item, ...items]);
       setItemForm(emptyItemForm);
       setSelectedItemId(item.id);
+      setScreen("detail");
       setMessage(
         `${item.type === "lost" ? "Lost" : "Found"} item report saved. We are checking the photo for possible matches.`
       );
@@ -286,26 +291,16 @@ function App() {
     }
   }
 
-  function scrollToSection(event, sectionId) {
-    event.preventDefault();
-    const section = document.getElementById(sectionId);
-
-    if (!section) {
-      return;
-    }
-
-    const targetTop = section.offsetTop - 88;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    window.history.replaceState(null, "", `#${sectionId}`);
-    window.scrollTo({
-      top: Math.max(0, Math.min(targetTop, maxScroll)),
-      behavior: "smooth"
-    });
+  function openItem(itemId) {
+    setSelectedItemId(itemId);
+    setScreen("detail");
   }
 
-  function openMatch(event, matchItemId) {
-    setSelectedItemId(matchItemId);
-    scrollToSection(event, "detail");
+  function startReport(type) {
+    setItemForm({ ...emptyItemForm, type });
+    setReportSheetOpen(false);
+    setMessage("");
+    setScreen("report");
   }
 
   if (!authReady) {
@@ -342,73 +337,97 @@ function App() {
           />
         </div>
       ) : (
-        <div className="mobile-frame">
-          <AppHeader currentUser={currentUser} onNavigate={scrollToSection} />
-
-          <section className="hero-card">
-            <p>Report an item, review possible matches, and use claims to close the loop when an item is recovered.</p>
-          </section>
-
-          {topMatch && (
-            <button className="match-hero" onClick={(event) => openMatch(event, topMatch.item.id)} type="button">
-              <span className="match-hero-label">Possible match</span>
-              <strong>A {topMatch.item.title} may match your report</strong>
-              <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
-              <span className="match-hero-cta">Review match →</span>
-            </button>
+        <div className="mobile-frame app-frame">
+          {(screen === "feed" || screen === "account") && (
+            <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
           )}
 
-          <section className="app-content">
-            <ReportForm
-              isSaving={isSaving}
-              itemForm={itemForm}
-              onChange={updateItemForm}
-              onImageChange={handleImageChange}
-              onSubmit={handleItemSubmit}
-            />
+          {(screen === "report" || screen === "detail") && (
+            <header className="screen-header">
+              <button className="back-button" onClick={() => setScreen("feed")} type="button">
+                <Icon name="back" size={20} />
+                Back
+              </button>
+            </header>
+          )}
 
-            <section className="glass-panel feed-panel" id="feed">
-              <FeedControls filters={feedFilters} onChange={updateFeedFilters} />
-              <div className="item-list">
-                {filteredItems.length === 0 ? (
-                  <div className="empty-state feed-empty">
-                    <p>No reports match your search yet.</p>
-                    <a className="secondary-button" href="#report" onClick={(event) => scrollToSection(event, "report")}>
-                      Report an item
-                    </a>
-                  </div>
-                ) : (
-                  filteredItems.map((item) => (
-                    <ItemCard
-                      item={item}
-                      key={item.id}
-                      matchScore={selectedItem && item.id !== selectedItem.id ? calculateMatchScore(selectedItem, item) : null}
-                      onSelect={() => setSelectedItemId(item.id)}
-                    />
-                  ))
+          <div className="screen" key={screen}>
+            {screen === "feed" && (
+              <>
+                <section className="hero-card">
+                  <p>Report an item, review possible matches, and use claims to close the loop when an item is recovered.</p>
+                </section>
+
+                {topMatch && (
+                  <button className="match-hero" onClick={() => openItem(topMatch.item.id)} type="button">
+                    <span className="match-hero-label">Possible match</span>
+                    <strong>A {topMatch.item.title} may match your report</strong>
+                    <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
+                    <span className="match-hero-cta">Review match →</span>
+                  </button>
                 )}
-              </div>
-            </section>
 
-            <ItemDetail
-              claimForm={claimForm}
-              claims={selectedClaims}
-              currentUser={currentUser}
-              isClaimSaving={isClaimSaving}
-              isResolving={isResolving}
-              item={selectedItem}
-              matches={matchSuggestions}
-              message={message}
-              onClaimChange={updateClaimForm}
-              onClaimSubmit={handleClaimSubmit}
-              onResolve={handleResolveItem}
-              onSelectItem={setSelectedItemId}
-            />
+                <section className="glass-panel feed-panel">
+                  <FeedControls filters={feedFilters} onChange={updateFeedFilters} />
+                  <div className="item-list">
+                    {filteredItems.length === 0 ? (
+                      <div className="empty-state feed-empty">
+                        <p>No reports match your search yet.</p>
+                        <button className="secondary-button" onClick={() => setReportSheetOpen(true)} type="button">
+                          Report an item
+                        </button>
+                      </div>
+                    ) : (
+                      filteredItems.map((item) => (
+                        <ItemCard
+                          item={item}
+                          key={item.id}
+                          matchScore={selectedItem && item.id !== selectedItem.id ? calculateMatchScore(selectedItem, item) : null}
+                          onSelect={() => openItem(item.id)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </section>
+              </>
+            )}
 
-            <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />
-          </section>
+            {screen === "report" && (
+              <>
+                <ReportForm
+                  isSaving={isSaving}
+                  itemForm={itemForm}
+                  onChange={updateItemForm}
+                  onImageChange={handleImageChange}
+                  onSubmit={handleItemSubmit}
+                />
+                {message && <p className="message">{message}</p>}
+              </>
+            )}
 
-          <BottomTabs hasSelection={Boolean(selectedItem)} onNavigate={scrollToSection} />
+            {screen === "detail" && (
+              <ItemDetail
+                claimForm={claimForm}
+                claims={selectedClaims}
+                currentUser={currentUser}
+                isClaimSaving={isClaimSaving}
+                isResolving={isResolving}
+                item={selectedItem}
+                matches={matchSuggestions}
+                message={message}
+                onClaimChange={updateClaimForm}
+                onClaimSubmit={handleClaimSubmit}
+                onResolve={handleResolveItem}
+                onSelectItem={openItem}
+              />
+            )}
+
+            {screen === "account" && <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />}
+          </div>
+
+          <BottomTabs active={screen} onReport={() => setReportSheetOpen(true)} onTab={setScreen} />
+
+          {reportSheetOpen && <ReportSheet onChoose={startReport} onClose={() => setReportSheetOpen(false)} />}
         </div>
       )}
     </main>

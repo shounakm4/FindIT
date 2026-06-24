@@ -12,7 +12,7 @@ function getGreeting() {
   return "Good evening";
 }
 
-export function AppHeader({ currentUser, onNavigate }) {
+export function AppHeader({ currentUser, onOpenAccount }) {
   const firstName = currentUser.name.split(" ")[0];
 
   return (
@@ -21,9 +21,9 @@ export function AppHeader({ currentUser, onNavigate }) {
         <img className="brand-logo" src="/logo.svg" alt="FindIT" />
         <p className="greeting">{getGreeting()}, {firstName}</p>
       </div>
-      <a className="header-profile" href="#account" onClick={(event) => onNavigate(event, "account")}>
+      <button className="header-profile" onClick={onOpenAccount} type="button">
         <span>{currentUser.name.charAt(0).toUpperCase()}</span>
-      </a>
+      </button>
     </header>
   );
 }
