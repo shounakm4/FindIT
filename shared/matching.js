@@ -49,6 +49,28 @@ export function findMatchSuggestions(items, selectedItem) {
     .slice(0, 4);
 }
 
+export function findTopMatchForUser(items, user) {
+  if (!user) {
+    return null;
+  }
+
+  const myOpenItems = items.filter(
+    (item) => item.userId === user.id && (item.status || "open") === "open"
+  );
+
+  let best = null;
+
+  myOpenItems.forEach((myItem) => {
+    findMatchSuggestions(items, myItem).forEach((suggestion) => {
+      if (!best || suggestion.score > best.score) {
+        best = { ...suggestion, sourceItem: myItem };
+      }
+    });
+  });
+
+  return best && best.score >= 55 ? best : null;
+}
+
 export function getMatchConfidence(score) {
   if (score >= 70) {
     return "High";

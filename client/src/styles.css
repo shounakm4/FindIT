@@ -1,9 +1,15 @@
 :root {
   --blue: #003d7c;
   --blue-2: #0b4ea2;
+  --blue-soft: #eaf1fa;
   --orange: #ef7c00;
   --orange-2: #ff9a1f;
+  --orange-deep: #c76200;
+  --orange-soft: #ffe9d2;
+  --good: #1f8a4c;
+  --good-soft: #e1f5ea;
   --ink: #102033;
+  --ink-2: #3d4a5e;
   --muted: #65758b;
   --surface: #f8fbff;
   --panel: rgba(255, 255, 255, 0.86);
@@ -37,6 +43,43 @@ select {
 
 button {
   cursor: pointer;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.item-card,
+.match-card,
+.match-hero,
+.primary-button,
+.secondary-button,
+.segmented-control button,
+.type-toggle label,
+.bottom-tabs a {
+  transition:
+    transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.item-card:active,
+.match-card:active,
+.match-hero:active,
+.primary-button:active,
+.secondary-button:active,
+.segmented-control button:active,
+.type-toggle label:active,
+.bottom-tabs a:active {
+  transform: scale(0.97);
 }
 
 .app-shell {
@@ -94,6 +137,13 @@ button {
   width: 132px;
 }
 
+.greeting {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
 .header-profile {
   display: grid;
   width: 42px;
@@ -139,6 +189,48 @@ button {
   margin: 0;
   font-size: 1rem;
   line-height: 1.55;
+}
+
+.match-hero {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 18px;
+  border: 0;
+  border-radius: 24px;
+  color: white;
+  text-align: left;
+  background: linear-gradient(135deg, var(--blue), #145daa 60%, var(--orange));
+  box-shadow: var(--shadow);
+  animation: fadeUp 0.3s ease;
+}
+
+.match-hero-label {
+  color: var(--orange-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.match-hero strong {
+  font-size: 1.08rem;
+}
+
+.match-hero small {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.9rem;
+}
+
+.match-hero-cta {
+  justify-self: start;
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.88rem;
+  font-weight: 800;
 }
 
 .app-content {
@@ -491,6 +583,48 @@ textarea {
 
 .status-pill.resolved {
   background: #41506a;
+}
+
+.type-chip.lost {
+  color: var(--orange-deep);
+  background: var(--orange-soft);
+}
+
+.type-chip.found {
+  color: var(--good);
+  background: var(--good-soft);
+}
+
+.trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.trust-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.reason-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.reason-chip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--blue-soft);
+  color: var(--ink-2);
+  font-size: 0.72rem;
+  font-style: normal;
 }
 
 .match-meter {

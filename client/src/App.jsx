@@ -25,7 +25,8 @@ import {
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,
-  findMatchSuggestions
+  findMatchSuggestions,
+  findTopMatchForUser
 } from "./utils/matching.js";
 
 function App() {
@@ -52,6 +53,7 @@ function App() {
 
   const filteredItems = useMemo(() => filterAndSortItems(items, feedFilters), [feedFilters, items]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
+  const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -301,6 +303,11 @@ function App() {
     });
   }
 
+  function openMatch(event, matchItemId) {
+    setSelectedItemId(matchItemId);
+    scrollToSection(event, "detail");
+  }
+
   if (!authReady) {
     return (
       <main className="app-shell">
@@ -341,6 +348,15 @@ function App() {
           <section className="hero-card">
             <p>Report an item, review possible matches, and use claims to close the loop when an item is recovered.</p>
           </section>
+
+          {topMatch && (
+            <button className="match-hero" onClick={(event) => openMatch(event, topMatch.item.id)} type="button">
+              <span className="match-hero-label">Possible match</span>
+              <strong>A {topMatch.item.title} may match your report</strong>
+              <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
+              <span className="match-hero-cta">Review match →</span>
+            </button>
+          )}
 
           <section className="app-content">
             <ReportForm
