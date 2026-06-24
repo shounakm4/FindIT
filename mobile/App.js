@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Component, useMemo, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import {
   calculateMatchScore,
@@ -39,7 +39,37 @@ const sampleReports = [
   }
 ];
 
-export default function App() {
+class MobileErrorBoundary extends Component {
+  state = {
+    error: null
+  };
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error) {
+    console.error(error);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.errorPanel}>
+            <Text style={styles.sectionTitle}>FindIT could not start</Text>
+            <Text style={styles.bodyText}>{this.state.error.message}</Text>
+            <Text style={styles.debugText}>Restart Expo with a clean cache after fixing the error.</Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function MobilePreview() {
   const [selectedId, setSelectedId] = useState(sampleReports[0].id);
   const [search, setSearch] = useState("");
   const selectedReport = sampleReports.find((report) => report.id === selectedId);
@@ -102,6 +132,14 @@ export default function App() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <MobileErrorBoundary>
+      <MobilePreview />
+    </MobileErrorBoundary>
   );
 }
 
@@ -190,6 +228,18 @@ const styles = StyleSheet.create({
   },
   bodyText: {
     color: "#5e6b7a",
+    lineHeight: 22
+  },
+  errorPanel: {
+    backgroundColor: "white",
+    borderRadius: 22,
+    gap: 12,
+    margin: 20,
+    padding: 18
+  },
+  debugText: {
+    color: "#ef7c00",
+    fontWeight: "800",
     lineHeight: 22
   }
 });
