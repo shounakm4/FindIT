@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --config client/vite.config.js",
     "build": "vite build --config client/vite.config.js",
+    "test": "node --test shared/matching.test.js",
     "preview": "vite preview --host 127.0.0.1 --config client/vite.config.js",
     "mobile:start": "npm --prefix mobile start",
     "mobile:android": "npm --prefix mobile run android",

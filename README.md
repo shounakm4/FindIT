@@ -152,9 +152,10 @@ client/               React frontend
   public/             App manifest and icon for PWA-style mobile preview
 mobile/              Expo React Native app foundation
 shared/              Cross-platform matching helpers
+  matching.js         Item match scoring and filtering
+  matching.test.js    Tests for the matching logic
 functions/          Firebase Cloud Functions
-  index.js           Labels new report photos with Gemini
-  labelImage.js      The Gemini image-labelling call
+  index.js           analyzeImage: gets Gemini labels for a photo
 docs/                Learning notes and GitHub guide
 firebase.json        Firebase Hosting, Firestore rules, and Storage rules setup
 .firebaserc          Firebase project selection for deploys

@@ -4,13 +4,12 @@ export const emptyAuthForm = {
   password: ""
 };
 
-export const itemCategories = ["Electronics", "Cards & IDs", "Bottles", "Bags", "Keys", "Clothing", "Other"];
+export const itemCategories = ["phone", "laptop", "earbuds", "wallet", "card", "bag", "bottle", "keys", "glasses", "charger"];
 
 export const emptyItemForm = {
   type: "lost",
   title: "",
   location: "",
-  category: "Electronics",
   description: "",
   imageDataUrl: "",
   imageFile: null,

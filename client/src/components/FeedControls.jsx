@@ -23,7 +23,7 @@ export function FeedControls({ filters, onChange, onSelectCategory }) {
             onClick={() => onSelectCategory(category)}
             type="button"
           >
-            {category === "all" ? "All" : category}
+            {category === "all" ? "All" : category.charAt(0).toUpperCase() + category.slice(1)}
           </button>
         ))}
       </div>

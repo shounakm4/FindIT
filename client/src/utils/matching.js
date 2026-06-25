@@ -1,4 +1,5 @@
 export {
+  buildMatchAttributes,
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,

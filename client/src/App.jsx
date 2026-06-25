@@ -12,6 +12,7 @@ import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
+  analyzeImageWithGemini,
   createClaim,
   createItemReport,
   fetchClaims,
@@ -25,6 +26,7 @@ import {
 } from "./services/firebaseClient.js";
 import { createImageSignature, readFileAsDataUrl } from "./utils/imageFiles.js";
 import {
+  buildMatchAttributes,
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,
@@ -218,13 +220,19 @@ function App() {
 
     try {
       setIsSaving(true);
-      // Store searchable words with the report so the matching feature does not depend only on the visible text.
+      const imageLabels = await analyzeImageWithGemini({
+        imageDataUrl: itemForm.imageDataUrl,
+        imageSignature: itemForm.imageSignature,
+        description: itemForm.description
+      });
       const item = await createItemReport({
         currentUser,
         imageFile: itemForm.imageFile,
         report: {
           ...itemForm,
-          searchKeywords: buildSearchKeywords(itemForm)
+          searchKeywords: buildSearchKeywords(itemForm),
+          matchAttributes: buildMatchAttributes(itemForm),
+          imageLabels
         }
       });
 
@@ -232,9 +240,7 @@ function App() {
       setItemForm(emptyItemForm);
       setSelectedItemId(item.id);
       setScreen("detail");
-      setMessage(
-        `${item.type === "lost" ? "Lost" : "Found"} item report saved. We are checking the photo for possible matches.`
-      );
+      setMessage(`${item.type === "lost" ? "Lost" : "Found"} item report saved.`);
     } catch (error) {
       setMessage(error.message || "Unable to save item.");
     } finally {
