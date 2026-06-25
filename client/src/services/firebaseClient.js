@@ -201,7 +201,7 @@ function dataUrlToBase64(imageDataUrl) {
   return imageDataUrl.replace(/^data:[^;]+;base64,/, "");
 }
 
-export async function analyzeImageWithGemini({ imageDataUrl, imageSignature, description, userId }) {
+export async function analyzeImageLabels({ imageDataUrl, imageSignature, description, userId }) {
   try {
     if (!imageDataUrl) {
       return null;
@@ -220,11 +220,11 @@ export async function analyzeImageWithGemini({ imageDataUrl, imageSignature, des
     return {
       labels: Array.isArray(labels) ? labels : [],
       summary: typeof result.data?.summary === "string" ? result.data.summary : "",
-      provider: result.data?.provider || "gemini",
+      provider: result.data?.provider || "vision",
       model: result.data?.model || null
     };
   } catch (error) {
-    console.warn("Unable to analyze image with Gemini.", error);
+    console.warn("Unable to analyze image.", error);
     return null;
   }
 }
@@ -293,7 +293,7 @@ export async function createItemReport({ currentUser, imageFile, report }) {
   let imageAnalysisUpdate = {};
 
   if (!cachedLabels.length && report.imageDataUrl) {
-    const analysis = await analyzeImageWithGemini({
+    const analysis = await analyzeImageLabels({
       imageDataUrl: report.imageDataUrl,
       imageSignature: report.imageSignature,
       description: report.description,
