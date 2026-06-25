@@ -96,38 +96,6 @@ npm run firebase:login
 The Firebase CLI is included as a development dependency, so it does not need to be installed
 globally for this project.
 
-## Mobile App Foundation
-
-The `mobile/` folder is the Expo React Native starting point. It currently shows the shared
-matching score flow with sample reports, while the existing web app remains the Firebase-backed
-MVP.
-
-Install mobile dependencies from the mobile folder:
-
-```bash
-cd mobile
-npm install
-```
-
-Start the mobile app from the project root:
-
-```bash
-npm run mobile:start
-```
-
-The mobile app is planned to reuse the same Firebase project and shared matching helpers. See
-`docs/MOBILE_MATCHING_PLAN.md` for the matching options and migration path.
-
-If the mobile app opens to a blank screen, restart Expo with a clean cache:
-
-```bash
-cd mobile
-npx expo start --clear
-```
-
-Then check the terminal and iOS simulator logs. The mobile app includes an error screen so render
-errors should appear in the app instead of staying as a blank screen.
-
 ## GitHub Actions
 
 Firebase Hosting is connected to GitHub Actions:
@@ -150,7 +118,6 @@ client/               React frontend
   src/utils/          Date, image, search, and matching helpers
   src/styles.css      Mobile-first app styling
   public/             App manifest and icon for PWA-style mobile preview
-mobile/              Expo React Native app foundation
 shared/              Cross-platform matching helpers
   matching.js         Item match scoring and filtering
   matching.test.js    Tests for the matching logic
