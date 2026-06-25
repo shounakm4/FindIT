@@ -193,21 +193,39 @@ export async function logoutUser() {
   await signOut(auth);
 }
 
-export async function analyzeImageWithGemini({ imageDataUrl, imageSignature, description }) {
+function dataUrlToBase64(imageDataUrl) {
+  if (typeof imageDataUrl !== "string") {
+    return "";
+  }
+
+  return imageDataUrl.replace(/^data:[^;]+;base64,/, "");
+}
+
+export async function analyzeImageWithGemini({ imageDataUrl, imageSignature, description, userId }) {
   try {
     if (!imageDataUrl) {
-      return [];
+      return null;
     }
 
     const { functionsClient } = ensureFirebase();
     const analyzeImage = httpsCallable(functionsClient, "analyzeImage");
-    const result = await analyzeImage({ imageDataUrl, imageSignature, description });
+    const result = await analyzeImage({
+      base64Image: dataUrlToBase64(imageDataUrl),
+      userId,
+      imageSignature,
+      description
+    });
     const labels = result.data?.labels;
 
-    return Array.isArray(labels) ? labels : [];
+    return {
+      labels: Array.isArray(labels) ? labels : [],
+      summary: typeof result.data?.summary === "string" ? result.data.summary : "",
+      provider: result.data?.provider || "gemini",
+      model: result.data?.model || null
+    };
   } catch (error) {
     console.warn("Unable to analyze image with Gemini.", error);
-    return [];
+    return null;
   }
 }
 
@@ -246,6 +264,7 @@ export async function createItemReport({ currentUser, imageFile, report }) {
   const extension = imageFile.name.split(".").pop() || "jpg";
   const imagePath = `items/${currentUser.id}/${crypto.randomUUID()}.${extension}`;
   const imageRef = ref(storage, imagePath);
+  const cachedLabels = Array.isArray(report.imageLabels) ? report.imageLabels : [];
 
   await uploadBytes(imageRef, imageFile, { contentType: imageFile.type });
   const imageUrl = await getDownloadURL(imageRef);
@@ -258,7 +277,9 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     imageUrl,
     imagePath,
     imageSignature: report.imageSignature || null,
-    imageLabels: report.imageLabels || [],
+    imageLabels: cachedLabels,
+    imageAnalysis: null,
+    imageAnalysisStatus: cachedLabels.length ? "cached" : "pending",
     matchAttributes: report.matchAttributes || null,
     searchKeywords: report.searchKeywords || [],
     status: "open",
@@ -269,10 +290,31 @@ export async function createItemReport({ currentUser, imageFile, report }) {
   };
 
   const docRef = await addDoc(collection(db, "items"), item);
+  let imageAnalysisUpdate = {};
+
+  if (!cachedLabels.length && report.imageDataUrl) {
+    const analysis = await analyzeImageWithGemini({
+      imageDataUrl: report.imageDataUrl,
+      imageSignature: report.imageSignature,
+      description: report.description,
+      userId: currentUser.id
+    });
+
+    imageAnalysisUpdate = {
+      imageLabels: analysis?.labels || [],
+      imageAnalysis: analysis,
+      imageAnalysisStatus: analysis ? "complete" : "failed",
+      imageAnalysisUpdatedAt: serverTimestamp()
+    };
+
+    await updateDoc(docRef, imageAnalysisUpdate);
+  }
 
   return {
     id: docRef.id,
     ...item,
+    ...imageAnalysisUpdate,
+    imageAnalysisUpdatedAt: imageAnalysisUpdate.imageAnalysisUpdatedAt ? new Date().toISOString() : undefined,
     createdAt: new Date().toISOString()
   };
 }

@@ -12,7 +12,6 @@ import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
-  analyzeImageWithGemini,
   createClaim,
   createItemReport,
   fetchClaims,
@@ -243,13 +242,6 @@ function App() {
           imageSignatureKey(item.imageSignature) === itemSignatureKey &&
           item.imageLabels?.length
       )?.imageLabels;
-      const imageLabels =
-        matchingImageLabels ||
-        (await analyzeImageWithGemini({
-          imageDataUrl: itemForm.imageDataUrl,
-          imageSignature: itemForm.imageSignature,
-          description: itemForm.description
-        }));
 
       // Store searchable words with the report so the matching feature does not depend only on the visible text.
       const item = await createItemReport({
@@ -259,7 +251,7 @@ function App() {
           ...itemForm,
           searchKeywords: buildSearchKeywords(itemForm),
           matchAttributes: buildMatchAttributes(itemForm),
-          imageLabels
+          imageLabels: matchingImageLabels || []
         }
       });
 
