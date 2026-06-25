@@ -20,6 +20,7 @@ import {
   setDoc,
   updateDoc
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 
 const firebaseConfig = {
@@ -39,6 +40,7 @@ export const isFirebaseConfigured = missingConfigKeys.length === 0;
 let app;
 let auth;
 let db;
+let functionsClient;
 let storage;
 
 function ensureFirebase() {
@@ -52,10 +54,11 @@ function ensureFirebase() {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    functionsClient = getFunctions(app);
     storage = getStorage(app);
   }
 
-  return { auth, db, storage };
+  return { auth, db, functionsClient, storage };
 }
 
 function publicUser(user) {
@@ -190,6 +193,24 @@ export async function logoutUser() {
   await signOut(auth);
 }
 
+export async function analyzeImageWithGemini({ imageDataUrl, imageSignature, description }) {
+  try {
+    if (!imageDataUrl) {
+      return [];
+    }
+
+    const { functionsClient } = ensureFirebase();
+    const analyzeImage = httpsCallable(functionsClient, "analyzeImage");
+    const result = await analyzeImage({ imageDataUrl, imageSignature, description });
+    const labels = result.data?.labels;
+
+    return Array.isArray(labels) ? labels : [];
+  } catch (error) {
+    console.warn("Unable to analyze image with Gemini.", error);
+    return [];
+  }
+}
+
 export async function fetchItems() {
   const { db } = ensureFirebase();
   const snapshot = await getDocs(query(collection(db, "items"), orderBy("createdAt", "desc")));
@@ -237,6 +258,8 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     imageUrl,
     imagePath,
     imageSignature: report.imageSignature || null,
+    imageLabels: report.imageLabels || [],
+    matchAttributes: report.matchAttributes || null,
     searchKeywords: report.searchKeywords || [],
     status: "open",
     userId: currentUser.id,

@@ -1,7 +1,7 @@
 export async function createImageSignature(imageDataUrl) {
   const image = await loadImage(imageDataUrl);
   const canvas = document.createElement("canvas");
-  const size = 24;
+  const size = 16;
   canvas.width = size;
   canvas.height = size;
   const context = canvas.getContext("2d", { willReadFrequently: true });

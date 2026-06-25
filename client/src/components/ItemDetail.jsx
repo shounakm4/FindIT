@@ -38,6 +38,10 @@ export function ItemDetail({
           <p className="panel-label">{item.type} report</p>
           <h2>{item.title}</h2>
           <span className={`status-pill ${status}`}>{status}</span>
+          <div className="trust-badges">
+            <span className="trust-badge">NUS verified</span>
+            {item.imageUrl && <span className="trust-badge">Photo by reporter</span>}
+          </div>
         </div>
       </div>
 
@@ -126,9 +130,17 @@ export function ItemDetail({
                 {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
                 <span>
                   <strong>{match.title}</strong>
-                  <small>{reasons.length ? reasons.join(", ") : match.location}</small>
+                  {reasons.length ? (
+                    <span className="reason-chips">
+                      {reasons.map((reason) => (
+                        <em className="reason-chip" key={reason}>{reason}</em>
+                      ))}
+                    </span>
+                  ) : (
+                    <small>{match.location}</small>
+                  )}
                 </span>
-                <b>{getMatchConfidence(score)} · {score}%</b>
+                <b>{getMatchConfidence(score)} match <em>{score}%</em></b>
               </button>
             ))
           )}

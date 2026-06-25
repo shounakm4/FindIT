@@ -5,11 +5,9 @@
   "description": "FindIT mobile-first lost-and-found prototype.",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "node server/index.js",
-    "dev:client": "vite --host 127.0.0.1 --config client/vite.config.js",
-    "start": "node server/index.js",
+    "dev": "vite --host 127.0.0.1 --config client/vite.config.js",
     "build": "vite build --config client/vite.config.js",
+    "test": "node --test shared/matching.test.js",
     "preview": "vite preview --host 127.0.0.1 --config client/vite.config.js",
     "mobile:start": "npm --prefix mobile start",
     "mobile:android": "npm --prefix mobile run android",
@@ -22,8 +20,6 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.4",
-    "concurrently": "^9.2.1",
-    "express": "^5.1.0",
     "firebase": "^12.14.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
