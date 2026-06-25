@@ -228,7 +228,7 @@ export function calculateMatchScore(baseItem, candidate) {
   const imageScore = imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature);
   const timeScore = timeProximityScore(baseItem.createdAt, candidate.createdAt);
 
-  const rawScore = Math.min(
+  return Math.min(
     99,
     Math.round(
       labelScore * 58 +
@@ -239,15 +239,6 @@ export function calculateMatchScore(baseItem, candidate) {
         timeScore * 1
     )
   );
-
-  return applyVisualConfidenceCap(rawScore, {
-    baseItem,
-    candidate,
-    baseAttributes,
-    candidateAttributes,
-    imageScore,
-    labelScore
-  });
 }
 
 export function getMatchReasons(baseItem, candidate) {
@@ -490,45 +481,9 @@ function weightedLabelMap(labels) {
   }, new Map());
 }
 
-function applyVisualConfidenceCap(score, { baseItem, candidate, baseAttributes, candidateAttributes, imageScore, labelScore }) {
-  if (baseAttributes.category && candidateAttributes.category && baseAttributes.category !== candidateAttributes.category) {
-    return Math.min(score, imageScore >= 0.98 ? 44 : 18);
-  }
-
-  const hasBaseLabels = hasImageLabels(baseItem);
-  const hasCandidateLabels = hasImageLabels(candidate);
-
-  if (hasBaseLabels && hasCandidateLabels) {
-    if (labelScore < 0.15) {
-      return imageScore >= 0.98 ? Math.max(score, 72) : Math.min(score, 18);
-    }
-
-    if (labelScore < 0.3) {
-      return imageScore >= 0.98 ? Math.max(score, 72) : Math.min(score, 34);
-    }
-
-    return score;
-  }
-
-  return imageScore >= 0.98 ? Math.max(score, 72) : Math.min(score, 24);
-}
-
-function hasImageLabels(item) {
-  return Array.isArray(item.imageLabels) && item.imageLabels.length > 0;
-}
-
 function imageSimilarityScore(left, right) {
   if (!left || !right || !left.averageColor || !right.averageColor) {
     return 0;
-  }
-
-  if (Array.isArray(left.colorGrid) && Array.isArray(right.colorGrid) && left.colorGrid.length === right.colorGrid.length) {
-    return colorGridSimilarityScore(left.colorGrid, right.colorGrid);
-  }
-
-  if (left.perceptualHash && right.perceptualHash && left.perceptualHash.length === right.perceptualHash.length) {
-    const distance = hammingDistance(left.perceptualHash, right.perceptualHash);
-    return Math.min(0.95, Math.max(0, 1 - distance / left.perceptualHash.length));
   }
 
   const distance = Math.sqrt(
@@ -538,58 +493,6 @@ function imageSimilarityScore(left, right) {
   );
 
   return Math.min(0.8, Math.max(0, 1 - distance / 441));
-}
-
-function hammingDistance(left, right) {
-  let distance = 0;
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      distance += 1;
-    }
-  }
-
-  return distance;
-}
-
-function colorGridSimilarityScore(leftGrid, rightGrid) {
-  let totalDistance = 0;
-  let compared = 0;
-
-  if (isFlatColorGrid(leftGrid) && isFlatColorGrid(rightGrid)) {
-    for (let index = 0; index < leftGrid.length; index += 3) {
-      totalDistance += Math.sqrt(
-        (leftGrid[index] - rightGrid[index]) ** 2 +
-          (leftGrid[index + 1] - rightGrid[index + 1]) ** 2 +
-          (leftGrid[index + 2] - rightGrid[index + 2]) ** 2
-      );
-      compared += 1;
-    }
-  } else {
-    for (let index = 0; index < leftGrid.length; index += 1) {
-      const leftPixel = leftGrid[index];
-      const rightPixel = rightGrid[index];
-
-      if (Array.isArray(leftPixel) && Array.isArray(rightPixel)) {
-        totalDistance += Math.sqrt(
-          (leftPixel[0] - rightPixel[0]) ** 2 +
-            (leftPixel[1] - rightPixel[1]) ** 2 +
-            (leftPixel[2] - rightPixel[2]) ** 2
-        );
-        compared += 1;
-      }
-    }
-  }
-
-  if (!compared) {
-    return 0;
-  }
-
-  return Math.max(0, 1 - totalDistance / (compared * Math.sqrt(147)));
-}
-
-function isFlatColorGrid(grid) {
-  return grid.length % 3 === 0 && grid.every((value) => typeof value === "number");
 }
 
 function timeProximityScore(leftDate, rightDate) {
