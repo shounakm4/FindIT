@@ -4,9 +4,12 @@ import { AppHeader } from "./components/AppHeader.jsx";
 import { AuthCard } from "./components/AuthCard.jsx";
 import { BottomTabs } from "./components/BottomTabs.jsx";
 import { FeedControls } from "./components/FeedControls.jsx";
+import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
 import { ItemDetail } from "./components/ItemDetail.jsx";
+import { MatchScreen } from "./components/MatchScreen.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
+import { ReportSheet } from "./components/ReportSheet.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
   createClaim,
@@ -26,7 +29,9 @@ import {
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,
-  findMatchSuggestions
+  findMatchSuggestions,
+  findTopMatchForUser,
+  getMatchReasons
 } from "./utils/matching.js";
 
 function App() {
@@ -45,6 +50,9 @@ function App() {
   const [isResolving, setIsResolving] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [feedFilters, setFeedFilters] = useState(defaultFeedFilters);
+  const [screen, setScreen] = useState("feed");
+  const [reportSheetOpen, setReportSheetOpen] = useState(false);
+  const [activeMatch, setActiveMatch] = useState(null);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedItemId) || null,
@@ -53,6 +61,22 @@ function App() {
 
   const filteredItems = useMemo(() => filterAndSortItems(items, feedFilters), [feedFilters, items]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
+  const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
+  const highConfidenceMatches = useMemo(() => {
+    if (selectedItem?.type !== "lost") {
+      return [];
+    }
+
+    return items
+      .filter((item) => item.id !== selectedItem.id && item.type === "found" && (item.status || "open") === "open")
+      .map((candidate) => ({
+        item: candidate,
+        score: calculateMatchScore(selectedItem, candidate),
+        reasons: getMatchReasons(selectedItem, candidate)
+      }))
+      .filter((match) => match.score > 65)
+      .sort((a, b) => b.score - a.score);
+  }, [items, selectedItem]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -127,6 +151,10 @@ function App() {
       ...feedFilters,
       [event.target.name]: event.target.value
     });
+  }
+
+  function selectCategory(category) {
+    setFeedFilters({ ...feedFilters, category });
   }
 
   async function handleAuthSubmit(event) {
@@ -207,20 +235,30 @@ function App() {
 
     try {
       setIsSaving(true);
+      const itemSignatureKey = imageSignatureKey(itemForm.imageSignature);
+      const matchingImageLabels = items.find(
+        (item) =>
+          itemSignatureKey &&
+          imageSignatureKey(item.imageSignature) === itemSignatureKey &&
+          item.imageLabels?.length
+      )?.imageLabels;
+
       // Store searchable words with the report so the matching feature does not depend only on the visible text.
       const item = await createItemReport({
         currentUser,
         imageFile: itemForm.imageFile,
         report: {
           ...itemForm,
+          searchKeywords: buildSearchKeywords(itemForm),
           matchAttributes: buildMatchAttributes(itemForm),
-          searchKeywords: buildSearchKeywords(itemForm)
+          imageLabels: matchingImageLabels || []
         }
       });
 
       setItems([item, ...items]);
       setItemForm(emptyItemForm);
       setSelectedItemId(item.id);
+      setScreen("detail");
       setMessage(`${item.type === "lost" ? "Lost" : "Found"} item report saved.`);
     } catch (error) {
       setMessage(error.message || "Unable to save item.");
@@ -284,21 +322,25 @@ function App() {
     }
   }
 
-  function scrollToSection(event, sectionId) {
-    event.preventDefault();
-    const section = document.getElementById(sectionId);
+  function openItem(itemId) {
+    setSelectedItemId(itemId);
+    setScreen("detail");
+  }
 
-    if (!section) {
+  function openMatchScreen() {
+    if (!topMatch) {
       return;
     }
 
-    const targetTop = section.offsetTop - 88;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    window.history.replaceState(null, "", `#${sectionId}`);
-    window.scrollTo({
-      top: Math.max(0, Math.min(targetTop, maxScroll)),
-      behavior: "smooth"
-    });
+    setActiveMatch(topMatch);
+    setScreen("match");
+  }
+
+  function startReport(type) {
+    setItemForm({ ...emptyItemForm, type });
+    setReportSheetOpen(false);
+    setMessage("");
+    setScreen("report");
   }
 
   if (!authReady) {
@@ -335,63 +377,131 @@ function App() {
           />
         </div>
       ) : (
-        <div className="mobile-frame">
-          <AppHeader currentUser={currentUser} onNavigate={scrollToSection} />
+        <div className="mobile-frame app-frame">
+          {(screen === "feed" || screen === "account") && (
+            <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
+          )}
 
-          <section className="hero-card">
-            <p>Report an item, review possible matches, and use claims to close the loop when an item is recovered.</p>
-          </section>
+          {(screen === "report" || screen === "detail") && (
+            <header className="screen-header">
+              <button className="back-button" onClick={() => setScreen("feed")} type="button">
+                <Icon name="back" size={20} />
+                Back
+              </button>
+            </header>
+          )}
 
-          <section className="app-content">
-            <ReportForm
-              isSaving={isSaving}
-              itemForm={itemForm}
-              onChange={updateItemForm}
-              onImageChange={handleImageChange}
-              onSubmit={handleItemSubmit}
-            />
+          <div className="screen" key={screen}>
+            {screen === "feed" && (
+              <>
+                <section className="hero-card">
+                  <p>Report an item, review possible matches, and use claims to close the loop when an item is recovered.</p>
+                </section>
 
-            <section className="glass-panel feed-panel" id="feed">
-              <FeedControls filters={feedFilters} onChange={updateFeedFilters} />
-              <div className="item-list">
-                {filteredItems.length === 0 ? (
-                  <p className="empty-state">No matching reports.</p>
-                ) : (
-                  filteredItems.map((item) => (
-                    <ItemCard
-                      item={item}
-                      key={item.id}
-                      matchScore={selectedItem && item.id !== selectedItem.id ? calculateMatchScore(selectedItem, item) : null}
-                      onSelect={() => setSelectedItemId(item.id)}
-                    />
-                  ))
+                {topMatch && (
+                  <button className="match-hero" onClick={openMatchScreen} type="button">
+                    <span className="match-hero-label">Possible match</span>
+                    <strong>A {topMatch.item.title} may match your report</strong>
+                    <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
+                    <span className="match-hero-cta">Review match →</span>
+                  </button>
                 )}
-              </div>
-            </section>
 
-            <ItemDetail
-              claimForm={claimForm}
-              claims={selectedClaims}
-              currentUser={currentUser}
-              isClaimSaving={isClaimSaving}
-              isResolving={isResolving}
-              item={selectedItem}
-              matches={matchSuggestions}
-              message={message}
-              onClaimChange={updateClaimForm}
-              onClaimSubmit={handleClaimSubmit}
-              onResolve={handleResolveItem}
-              onSelectItem={setSelectedItemId}
-            />
+                <section className="glass-panel feed-panel">
+                  <FeedControls filters={feedFilters} onChange={updateFeedFilters} onSelectCategory={selectCategory} />
+                  <div className="item-list">
+                    {filteredItems.length === 0 ? (
+                      <div className="empty-state feed-empty">
+                        <p>No reports match your search yet.</p>
+                        <button className="secondary-button" onClick={() => setReportSheetOpen(true)} type="button">
+                          Report an item
+                        </button>
+                      </div>
+                    ) : (
+                      filteredItems.map((item) => (
+                        <ItemCard
+                          item={item}
+                          key={item.id}
+                          matchScore={selectedItem && item.id !== selectedItem.id ? calculateMatchScore(selectedItem, item) : null}
+                          onSelect={() => openItem(item.id)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </section>
+              </>
+            )}
 
-            <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />
-          </section>
+            {screen === "report" && (
+              <>
+                <ReportForm
+                  isSaving={isSaving}
+                  itemForm={itemForm}
+                  onChange={updateItemForm}
+                  onImageChange={handleImageChange}
+                  onSubmit={handleItemSubmit}
+                />
+                {message && <p className="message">{message}</p>}
+              </>
+            )}
 
-          <BottomTabs onNavigate={scrollToSection} />
+            {screen === "detail" && (
+              <ItemDetail
+                claimForm={claimForm}
+                claims={selectedClaims}
+                currentUser={currentUser}
+                highConfidenceMatches={highConfidenceMatches}
+                isClaimSaving={isClaimSaving}
+                isResolving={isResolving}
+                item={selectedItem}
+                matches={matchSuggestions}
+                message={message}
+                onClaimChange={updateClaimForm}
+                onClaimSubmit={handleClaimSubmit}
+                onResolve={handleResolveItem}
+                onSelectItem={openItem}
+              />
+            )}
+
+            {screen === "match" && activeMatch && (
+              <MatchScreen
+                match={activeMatch}
+                onClaim={() => openItem(activeMatch.item.id)}
+                onDismiss={() => setScreen("feed")}
+              />
+            )}
+
+            {screen === "account" && <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />}
+          </div>
+
+          <BottomTabs active={screen} onReport={() => setReportSheetOpen(true)} onTab={setScreen} />
+
+          {reportSheetOpen && <ReportSheet onChoose={startReport} onClose={() => setReportSheetOpen(false)} />}
         </div>
       )}
     </main>
   );
+}
+
+function imageSignatureKey(signature) {
+  if (!signature) {
+    return "";
+  }
+
+  if (signature.perceptualHash) {
+    return signature.perceptualHash;
+  }
+
+  if (Array.isArray(signature.colorGrid)) {
+    return signature.colorGrid.map((pixel) => (Array.isArray(pixel) ? pixel.join("-") : String(pixel))).join(".");
+  }
+
+  if (signature.averageColor) {
+    const { r, g, b } = signature.averageColor;
+    return `${r}-${g}-${b}`;
+  }
+
+  return "";
 }
 
 export default App;

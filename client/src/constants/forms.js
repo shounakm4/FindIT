@@ -4,6 +4,8 @@ export const emptyAuthForm = {
   password: ""
 };
 
+export const itemCategories = ["phone", "laptop", "earbuds", "wallet", "card", "bag", "bottle", "keys", "glasses", "charger"];
+
 export const emptyItemForm = {
   type: "lost",
   title: "",
@@ -23,5 +25,6 @@ export const defaultFeedFilters = {
   query: "",
   type: "all",
   status: "open",
+  category: "all",
   sort: "newest"
 };

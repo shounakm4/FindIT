@@ -5,6 +5,7 @@ export function ItemDetail({
   claimForm,
   claims,
   currentUser,
+  highConfidenceMatches = [],
   isClaimSaving,
   isResolving,
   item,
@@ -38,6 +39,10 @@ export function ItemDetail({
           <p className="panel-label">{item.type} report</p>
           <h2>{item.title}</h2>
           <span className={`status-pill ${status}`}>{status}</span>
+          <div className="trust-badges">
+            <span className="trust-badge">NUS verified</span>
+            {item.imageUrl && <span className="trust-badge">Photo by reporter</span>}
+          </div>
         </div>
       </div>
 
@@ -112,6 +117,60 @@ export function ItemDetail({
 
       {message && <p className="message">{message}</p>}
 
+      {item.type === "lost" && highConfidenceMatches.length > 0 && (
+        <section
+          className="detail-section"
+          style={{
+            display: "grid",
+            gap: "14px",
+            padding: "14px",
+            border: "1px solid rgba(241, 143, 1, 0.38)",
+            borderRadius: "18px",
+            background: "rgba(241, 143, 1, 0.12)"
+          }}
+        >
+          <div className="panel-heading compact">
+            <p className="panel-label">Action Required</p>
+            <h3>Verify These Found Items</h3>
+          </div>
+          <p className="detail-description">
+            The following found reports are strong matches for your item. Review each one carefully and submit a claim
+            only after confirming the details match.
+          </p>
+          <div className="match-list">
+            {highConfidenceMatches.map((matchRecord) => {
+              const match = matchRecord.item || matchRecord;
+              const reasons = matchRecord.reasons || [];
+              const score = matchRecord.score || 0;
+
+              return (
+                <article
+                  className="match-card"
+                  key={match.id}
+                  style={{
+                    gridTemplateColumns: match.imageUrl ? "64px 1fr" : "1fr",
+                    alignItems: "start"
+                  }}
+                >
+                  {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
+                  <span style={{ gap: "8px" }}>
+                    <strong>{match.title}</strong>
+                    <small>
+                      {getMatchConfidence(score)} confidence · {score}%
+                    </small>
+                    <small>{reasons.length ? reasons.join(", ") : "Strong similarity across report details"}</small>
+                    <small>{match.location}</small>
+                    <button className="secondary-button" onClick={() => onSelectItem(match.id)} type="button">
+                      Review this report
+                    </button>
+                  </span>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       <section className="detail-section">
         <div className="panel-heading compact">
           <p className="panel-label">Possible Matches</p>
@@ -126,9 +185,17 @@ export function ItemDetail({
                 {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
                 <span>
                   <strong>{match.title}</strong>
-                  <small>{reasons.length ? reasons.join(", ") : match.location}</small>
+                  {reasons.length ? (
+                    <span className="reason-chips">
+                      {reasons.map((reason) => (
+                        <em className="reason-chip" key={reason}>{reason}</em>
+                      ))}
+                    </span>
+                  ) : (
+                    <small>{match.location}</small>
+                  )}
                 </span>
-                <b>{getMatchConfidence(score)} · {score}%</b>
+                <b>{getMatchConfidence(score)} match <em>{score}%</em></b>
               </button>
             ))
           )}

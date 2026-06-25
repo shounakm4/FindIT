@@ -54,6 +54,8 @@ const CANONICAL_TOKENS = {
   mobile: "phone",
   navy: "blue",
   pass: "card",
+  powerbank: "powerbank",
+  powerbanks: "powerbank",
   purse: "wallet",
   rucksack: "bag",
   spectacle: "glasses",
@@ -64,6 +66,7 @@ const CANONICAL_TOKENS = {
 const CATEGORY_TERMS = {
   wallet: ["wallet", "billfold", "purse"],
   phone: ["phone", "iphone", "mobile", "cellphone", "handphone"],
+  powerbank: ["powerbank", "power bank", "portable charger", "battery bank"],
   laptop: ["laptop", "macbook", "notebook"],
   earbuds: ["earbuds", "earbud", "airpods", "airpod", "earphones", "earphone", "buds"],
   bag: ["bag", "backpack", "rucksack", "tote", "pouch"],
@@ -72,7 +75,7 @@ const CATEGORY_TERMS = {
   keys: ["keys", "key"],
   glasses: ["glasses", "spectacles", "eyeglasses", "sunglasses"],
   umbrella: ["umbrella"],
-  charger: ["charger", "adapter", "cable"]
+  charger: ["charger", "adapter"]
 };
 
 const COLOR_TERMS = {
@@ -135,10 +138,11 @@ export function filterAndSortItems(items, filters) {
   return sortedItems.filter((item) => {
     const matchesType = filters.type === "all" || item.type === filters.type;
     const matchesStatus = filters.status === "all" || (item.status || "open") === filters.status;
+    const matchesCategory = filters.category === "all" || (item.matchAttributes?.category || "") === filters.category;
     const searchable = `${item.title} ${item.description} ${item.location} ${item.userName}`.toLowerCase();
     const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
 
-    return matchesType && matchesStatus && matchesQuery;
+    return matchesType && matchesStatus && matchesCategory && matchesQuery;
   });
 }
 
@@ -157,6 +161,28 @@ export function findMatchSuggestions(items, selectedItem) {
     .filter((match) => match.score >= 25)
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
+}
+
+export function findTopMatchForUser(items, user) {
+  if (!user) {
+    return null;
+  }
+
+  const myOpenItems = items.filter(
+    (item) => item.userId === user.id && (item.status || "open") === "open"
+  );
+
+  let best = null;
+
+  myOpenItems.forEach((myItem) => {
+    findMatchSuggestions(items, myItem).forEach((suggestion) => {
+      if (!best || suggestion.score > best.score) {
+        best = { ...suggestion, sourceItem: myItem };
+      }
+    });
+  });
+
+  return best && best.score >= 55 ? best : null;
 }
 
 export function getMatchConfidence(score) {
@@ -180,7 +206,7 @@ export function buildMatchAttributes(report) {
   const tokens = reportTokens(report);
 
   return {
-    category: firstMatchingGroup(tokens, CATEGORY_TERMS),
+    category: firstMatchingGroup(text, tokens, CATEGORY_TERMS),
     colors: matchingGroups(text, tokens, COLOR_TERMS),
     materials: matchingGroups(text, tokens, MATERIAL_TERMS),
     brands: matchingGroups(text, tokens, BRAND_TERMS),
@@ -193,26 +219,35 @@ export function calculateMatchScore(baseItem, candidate) {
     return 0;
   }
 
+  const baseAttributes = resolveMatchAttributes(baseItem);
+  const candidateAttributes = resolveMatchAttributes(candidate);
   const textScore = weightedTextScore(baseItem, candidate);
-  const attributeScore = matchAttributeScore(resolveMatchAttributes(baseItem), resolveMatchAttributes(candidate));
+  const attributeScore = matchAttributeScore(baseAttributes, candidateAttributes);
   const locationScore = jaccardScore(tokenize(baseItem.location), tokenize(candidate.location));
   const labelScore = labelSimilarityScore(baseItem.imageLabels, candidate.imageLabels);
   const imageScore = imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature);
   const timeScore = timeProximityScore(baseItem.createdAt, candidate.createdAt);
-  const statusBoost = (baseItem.status || "open") === "open" && (candidate.status || "open") === "open" ? 3 : 0;
 
-  return Math.min(
+  const rawScore = Math.min(
     99,
     Math.round(
-      textScore * 32 +
-        attributeScore * 28 +
-        locationScore * 15 +
-        labelScore * 12 +
-        imageScore * 5 +
-        timeScore * 5 +
-        statusBoost
+      labelScore * 58 +
+        imageScore * 28 +
+        textScore * 14 +
+        attributeScore * 6 +
+        locationScore * 5 +
+        timeScore * 1
     )
   );
+
+  return applyVisualConfidenceCap(rawScore, {
+    baseItem,
+    candidate,
+    baseAttributes,
+    candidateAttributes,
+    imageScore,
+    labelScore
+  });
 }
 
 export function getMatchReasons(baseItem, candidate) {
@@ -223,6 +258,14 @@ export function getMatchReasons(baseItem, candidate) {
   const reasons = [];
   const baseAttributes = resolveMatchAttributes(baseItem);
   const candidateAttributes = resolveMatchAttributes(candidate);
+
+  if (labelSimilarityScore(baseItem.imageLabels, candidate.imageLabels) >= 0.3) {
+    reasons.push("similar image labels");
+  }
+
+  if (imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature) >= 0.85) {
+    reasons.push("similar photo color");
+  }
 
   if (baseAttributes.category && baseAttributes.category === candidateAttributes.category) {
     reasons.push(`same category: ${baseAttributes.category}`);
@@ -249,14 +292,6 @@ export function getMatchReasons(baseItem, candidate) {
 
   if (jaccardScore(tokenize(baseItem.location), tokenize(candidate.location)) >= 0.35) {
     reasons.push("nearby location");
-  }
-
-  if (labelSimilarityScore(baseItem.imageLabels, candidate.imageLabels) >= 0.3) {
-    reasons.push("similar image labels");
-  }
-
-  if (imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature) >= 0.75) {
-    reasons.push("similar photo color");
   }
 
   if (timeProximityScore(baseItem.createdAt, candidate.createdAt) >= 0.65) {
@@ -313,19 +348,24 @@ function reportTokens(report) {
 }
 
 function resolveMatchAttributes(report) {
-  const attributes = report.matchAttributes || buildMatchAttributes(report);
+  const attributes = report.matchAttributes || {};
+  const inferredAttributes = buildMatchAttributes(report);
 
   return {
-    category: attributes.category || "",
-    colors: attributes.colors || [],
-    materials: attributes.materials || [],
-    brands: attributes.brands || [],
-    identifiers: attributes.identifiers || []
+    category: attributes.category || inferredAttributes.category || "",
+    colors: attributes.colors?.length ? attributes.colors : inferredAttributes.colors || [],
+    materials: attributes.materials?.length ? attributes.materials : inferredAttributes.materials || [],
+    brands: attributes.brands?.length ? attributes.brands : inferredAttributes.brands || [],
+    identifiers: attributes.identifiers?.length ? attributes.identifiers : inferredAttributes.identifiers || []
   };
 }
 
-function firstMatchingGroup(tokens, groups) {
-  return Object.entries(groups).find(([, terms]) => terms.some((term) => tokens.includes(normalizeToken(term))))?.[0] || "";
+function firstMatchingGroup(text, tokens, groups) {
+  return (
+    Object.entries(groups).find(([, terms]) =>
+      terms.some((term) => (term.includes(" ") ? text.includes(term) : tokens.includes(normalizeToken(term))))
+    )?.[0] || ""
+  );
 }
 
 function matchingGroups(text, tokens, groups) {
@@ -438,19 +478,57 @@ function labelSimilarityScore(leftLabels = [], rightLabels = []) {
 
 function weightedLabelMap(labels) {
   return labels.reduce((map, label) => {
-    const text = String(label.text || label.description || "").trim().toLowerCase();
+    const text = String(label.text || label.description || "").trim();
+    const confidenceValue = Number(label.confidence || label.score || 0.5);
+    const confidence = Number.isFinite(confidenceValue) ? confidenceValue : 0.5;
 
-    if (text) {
-      map.set(text, Math.max(map.get(text) || 0, Number(label.confidence || label.score || 0.5)));
-    }
+    tokenize(text).forEach((token) => {
+      map.set(token, Math.max(map.get(token) || 0, confidence));
+    });
 
     return map;
   }, new Map());
 }
 
+function applyVisualConfidenceCap(score, { baseItem, candidate, baseAttributes, candidateAttributes, imageScore, labelScore }) {
+  if (baseAttributes.category && candidateAttributes.category && baseAttributes.category !== candidateAttributes.category) {
+    return Math.min(score, imageScore >= 0.98 ? 44 : 18);
+  }
+
+  const hasBaseLabels = hasImageLabels(baseItem);
+  const hasCandidateLabels = hasImageLabels(candidate);
+
+  if (hasBaseLabels && hasCandidateLabels) {
+    if (labelScore < 0.15) {
+      return imageScore >= 0.98 ? Math.max(score, 72) : Math.min(score, 18);
+    }
+
+    if (labelScore < 0.3) {
+      return imageScore >= 0.98 ? Math.max(score, 72) : Math.min(score, 34);
+    }
+
+    return score;
+  }
+
+  return imageScore >= 0.98 ? Math.max(score, 72) : Math.min(score, 24);
+}
+
+function hasImageLabels(item) {
+  return Array.isArray(item.imageLabels) && item.imageLabels.length > 0;
+}
+
 function imageSimilarityScore(left, right) {
-  if (!left || !right) {
+  if (!left || !right || !left.averageColor || !right.averageColor) {
     return 0;
+  }
+
+  if (Array.isArray(left.colorGrid) && Array.isArray(right.colorGrid) && left.colorGrid.length === right.colorGrid.length) {
+    return colorGridSimilarityScore(left.colorGrid, right.colorGrid);
+  }
+
+  if (left.perceptualHash && right.perceptualHash && left.perceptualHash.length === right.perceptualHash.length) {
+    const distance = hammingDistance(left.perceptualHash, right.perceptualHash);
+    return Math.min(0.95, Math.max(0, 1 - distance / left.perceptualHash.length));
   }
 
   const distance = Math.sqrt(
@@ -459,7 +537,59 @@ function imageSimilarityScore(left, right) {
       (left.averageColor.b - right.averageColor.b) ** 2
   );
 
-  return Math.max(0, 1 - distance / 441);
+  return Math.min(0.8, Math.max(0, 1 - distance / 441));
+}
+
+function hammingDistance(left, right) {
+  let distance = 0;
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      distance += 1;
+    }
+  }
+
+  return distance;
+}
+
+function colorGridSimilarityScore(leftGrid, rightGrid) {
+  let totalDistance = 0;
+  let compared = 0;
+
+  if (isFlatColorGrid(leftGrid) && isFlatColorGrid(rightGrid)) {
+    for (let index = 0; index < leftGrid.length; index += 3) {
+      totalDistance += Math.sqrt(
+        (leftGrid[index] - rightGrid[index]) ** 2 +
+          (leftGrid[index + 1] - rightGrid[index + 1]) ** 2 +
+          (leftGrid[index + 2] - rightGrid[index + 2]) ** 2
+      );
+      compared += 1;
+    }
+  } else {
+    for (let index = 0; index < leftGrid.length; index += 1) {
+      const leftPixel = leftGrid[index];
+      const rightPixel = rightGrid[index];
+
+      if (Array.isArray(leftPixel) && Array.isArray(rightPixel)) {
+        totalDistance += Math.sqrt(
+          (leftPixel[0] - rightPixel[0]) ** 2 +
+            (leftPixel[1] - rightPixel[1]) ** 2 +
+            (leftPixel[2] - rightPixel[2]) ** 2
+        );
+        compared += 1;
+      }
+    }
+  }
+
+  if (!compared) {
+    return 0;
+  }
+
+  return Math.max(0, 1 - totalDistance / (compared * Math.sqrt(147)));
+}
+
+function isFlatColorGrid(grid) {
+  return grid.length % 3 === 0 && grid.every((value) => typeof value === "number");
 }
 
 function timeProximityScore(leftDate, rightDate) {
