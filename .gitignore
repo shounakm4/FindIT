@@ -1,5 +1,8 @@
 node_modules/
 dist/
+mobile/ios/
+mobile/android/
+mobile/dist-*/
 .DS_Store
 .env
 .env.example
