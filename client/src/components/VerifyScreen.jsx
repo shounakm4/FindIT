@@ -1,3 +1,5 @@
+import { MatchSummaryCard } from "./MatchReview.jsx";
+
 export function VerifyScreen({ verifyMatches = [], onDismiss, onReview }) {
   return (
     <section className="glass-panel verify-screen">
@@ -10,24 +12,14 @@ export function VerifyScreen({ verifyMatches = [], onDismiss, onReview }) {
         <p className="empty-state">No potential matches to verify right now.</p>
       ) : (
         <div className="verify-list">
-          {verifyMatches.map(({ foundItem, matchedLostItem, score }) => (
-            <article className="verify-card" key={foundItem.id}>
-              {foundItem.imageUrl && <img src={foundItem.imageUrl} alt={foundItem.title} />}
-              <div>
-                <strong>{foundItem.title}</strong>
-                <small>{foundItem.location}</small>
-                <small>{score}% match</small>
-                <small>Matched against: {matchedLostItem.title}</small>
-              </div>
-              <div className="verify-actions">
-                <button className="secondary-button" onClick={() => onReview(foundItem.id)} type="button">
-                  Review
-                </button>
-                <button className="secondary-button" onClick={() => onDismiss(foundItem.id)} type="button">
-                  Dismiss
-                </button>
-              </div>
-            </article>
+          {verifyMatches.map((match) => (
+            <MatchSummaryCard
+              actionLabel="Review match"
+              key={match.id}
+              match={match}
+              onDismiss={onDismiss}
+              onReview={onReview}
+            />
           ))}
         </div>
       )}

@@ -138,6 +138,9 @@ const IDENTIFIER_PATTERNS = [
   { label: "driver license", pattern: /\b(driver|driving)\s+licen[cs]e\b/ }
 ];
 
+export const POSSIBLE_MATCH_THRESHOLD = 55;
+export const HIGH_CONFIDENCE_MATCH_THRESHOLD = 65;
+
 export function filterAndSortItems(items, filters) {
   const normalizedQuery = filters.query.trim().toLowerCase();
   const sortedItems = [...items].sort((a, b) => {
@@ -181,7 +184,7 @@ export function findTopMatchForUser(items, user) {
   }
 
   const myOpenItems = items.filter(
-    (item) => item.userId === user.id && (item.status || "open") === "open"
+    (item) => item.userId === user.id && item.type === "lost" && (item.status || "open") === "open"
   );
 
   let best = null;
@@ -194,7 +197,7 @@ export function findTopMatchForUser(items, user) {
     });
   });
 
-  return best && best.score >= 55 ? best : null;
+  return best && best.score >= POSSIBLE_MATCH_THRESHOLD ? best : null;
 }
 
 export function findAlertsForUser(items, user) {
@@ -203,20 +206,21 @@ export function findAlertsForUser(items, user) {
   }
 
   const myOpenItems = items.filter(
-    (item) => item.userId === user.id && (item.status || "open") === "open"
+    (item) => item.userId === user.id && item.type === "lost" && (item.status || "open") === "open"
   );
   const alerts = new Map();
 
   myOpenItems.forEach((myItem) => {
     findMatchSuggestions(items, myItem).forEach((suggestion) => {
-      if (suggestion.score < 55) {
+      if (suggestion.score < POSSIBLE_MATCH_THRESHOLD) {
         return;
       }
 
-      const existing = alerts.get(suggestion.item.id);
+      const alertKey = `${myItem.id}:${suggestion.item.id}`;
+      const existing = alerts.get(alertKey);
 
       if (!existing || suggestion.score > existing.score) {
-        alerts.set(suggestion.item.id, { ...suggestion, sourceItem: myItem });
+        alerts.set(alertKey, { ...suggestion, sourceItem: myItem });
       }
     });
   });
@@ -225,7 +229,7 @@ export function findAlertsForUser(items, user) {
 }
 
 export function getMatchConfidence(score) {
-  if (score >= 65) {
+  if (score >= HIGH_CONFIDENCE_MATCH_THRESHOLD) {
     return "High";
   }
 

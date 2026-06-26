@@ -8,7 +8,7 @@ import { FeedControls } from "./components/FeedControls.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
 import { ItemDetail } from "./components/ItemDetail.jsx";
-import { MatchScreen } from "./components/MatchScreen.jsx";
+import { MatchReviewPanel } from "./components/MatchReview.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
 import { VerifyScreen } from "./components/VerifyScreen.jsx";
@@ -16,6 +16,7 @@ import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from
 import {
   createClaim,
   createItemReport,
+  dismissUserAlert,
   fetchClaims,
   fetchItems,
   fetchUserClaimSummary,
@@ -37,6 +38,7 @@ import {
   findAlertsForUser,
   findMatchSuggestions,
   findTopMatchForUser,
+  HIGH_CONFIDENCE_MATCH_THRESHOLD,
   getMatchReasons
 } from "./utils/matching.js";
 
@@ -66,9 +68,9 @@ function App() {
   const [feedFilters, setFeedFilters] = useState(defaultFeedFilters);
   const [screen, setScreen] = useState("feed");
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
-  const [activeMatch, setActiveMatch] = useState(null);
+  const [activeMatchReview, setActiveMatchReview] = useState(null);
   const [claimAlerts, setClaimAlerts] = useState([]);
-  const [dismissedVerifyIds, setDismissedVerifyIds] = useState([]);
+  const [dismissedMatchKeys, setDismissedMatchKeys] = useState(readDismissedMatchKeys);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedItemId) || null,
@@ -81,8 +83,20 @@ function App() {
   );
   const foundFeedItems = useMemo(() => filteredItems.filter((item) => item.type === "found"), [filteredItems]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
-  const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
-  const matchAlerts = useMemo(() => findAlertsForUser(items, currentUser), [currentUser, items]);
+  const topMatch = useMemo(() => {
+    const match = buildMatchReview(findTopMatchForUser(items, currentUser), "feed");
+
+    return match && match.matchedLostItem.userId === currentUser?.id && !dismissedMatchKeys.includes(match.id) ? match : null;
+  }, [currentUser, dismissedMatchKeys, items]);
+  const matchAlerts = useMemo(
+    () =>
+      findAlertsForUser(items, currentUser)
+        .map((match) => buildMatchReview(match, "alerts"))
+        .filter(Boolean)
+        .filter((match) => match.matchedLostItem.userId === currentUser?.id)
+        .filter((match) => !dismissedMatchKeys.includes(match.id)),
+    [currentUser, dismissedMatchKeys, items]
+  );
   const alerts = useMemo(() => [...claimAlerts, ...matchAlerts], [claimAlerts, matchAlerts]);
   const userLostItems = useMemo(
     () => items.filter((item) => item.userId === currentUser?.id && item.type === "lost"),
@@ -100,31 +114,35 @@ function App() {
     const myLostItems = items.filter(
       (item) => item.userId === currentUser.id && item.type === "lost" && (item.status || "open") === "open"
     );
-    const seen = new Map();
+    const matches = [];
 
     for (const lostItem of myLostItems) {
       const candidates = items.filter((item) => item.type === "found" && (item.status || "open") === "open");
 
       for (const foundItem of candidates) {
-        if (dismissedVerifyIds.includes(foundItem.id)) {
-          continue;
-        }
-
         const score = calculateMatchScore(lostItem, foundItem);
-
-        if (score > 65 && (!seen.has(foundItem.id) || seen.get(foundItem.id).score < score)) {
-          seen.set(foundItem.id, {
+        const match = buildMatchReview(
+          {
             foundItem,
-            score,
+            matchedLostItem: lostItem,
             reasons: getMatchReasons(lostItem, foundItem),
-            matchedLostItem: lostItem
-          });
+            score
+          },
+          "verify"
+        );
+
+        if (match && score >= HIGH_CONFIDENCE_MATCH_THRESHOLD && !dismissedMatchKeys.includes(match.id)) {
+          matches.push(match);
         }
       }
     }
 
-    return [...seen.values()].sort((a, b) => b.score - a.score);
-  }, [items, currentUser, dismissedVerifyIds]);
+    return matches.sort((a, b) => b.score - a.score);
+  }, [items, currentUser, dismissedMatchKeys]);
+  const accountMatchReviews = useMemo(
+    () => verifyMatches.map((match) => ({ ...match, origin: "account" })),
+    [verifyMatches]
+  );
   const highConfidenceMatches = useMemo(() => {
     if (selectedItem?.type !== "lost") {
       return [];
@@ -132,15 +150,17 @@ function App() {
 
     return items
       .filter((item) => item.id !== selectedItem.id && item.type === "found" && (item.status || "open") === "open")
-      .filter((item) => !dismissedVerifyIds.includes(item.id))
       .map((candidate) => ({
-        item: candidate,
+        foundItem: candidate,
+        matchedLostItem: selectedItem,
         score: calculateMatchScore(selectedItem, candidate),
         reasons: getMatchReasons(selectedItem, candidate)
       }))
-      .filter((match) => match.score > 65)
+      .map((match) => buildMatchReview(match, "detail"))
+      .filter(Boolean)
+      .filter((match) => match.score >= HIGH_CONFIDENCE_MATCH_THRESHOLD && !dismissedMatchKeys.includes(match.id))
       .sort((a, b) => b.score - a.score);
-  }, [dismissedVerifyIds, items, selectedItem]);
+  }, [dismissedMatchKeys, items, selectedItem]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -198,6 +218,10 @@ function App() {
       onError: setMessage
     });
   }, [currentUser]);
+
+  useEffect(() => {
+    writeDismissedMatchKeys(dismissedMatchKeys);
+  }, [dismissedMatchKeys]);
 
   async function loadItems() {
     try {
@@ -438,6 +462,7 @@ function App() {
       setCurrentUser(null);
       setItems([]);
       setClaimAlerts([]);
+      setActiveMatchReview(null);
       setSelectedItemId("");
       setMessage("");
     } catch (error) {
@@ -445,7 +470,8 @@ function App() {
     }
   }
 
-  function openItem(itemId) {
+  function openItem(itemId, matchContext = null) {
+    setActiveMatchReview(matchContext);
     setSelectedItemId(itemId);
     setScreen("detail");
   }
@@ -455,7 +481,12 @@ function App() {
       return;
     }
 
-    setActiveMatch(topMatch);
+    setActiveMatchReview(topMatch);
+    setScreen("match");
+  }
+
+  function openMatchScreenFromList(match) {
+    setActiveMatchReview(match);
     setScreen("match");
   }
 
@@ -466,8 +497,45 @@ function App() {
     setScreen("report");
   }
 
-  function dismissVerifyMatch(id) {
-    setDismissedVerifyIds((previousIds) => (previousIds.includes(id) ? previousIds : [...previousIds, id]));
+  function dismissMatch(match) {
+    if (!match?.id) {
+      return;
+    }
+
+    setDismissedMatchKeys((previousKeys) => (previousKeys.includes(match.id) ? previousKeys : [...previousKeys, match.id]));
+  }
+
+  async function dismissAlert(alert) {
+    if (alert.type !== "claim") {
+      dismissMatch(alert);
+      return;
+    }
+
+    try {
+      await dismissUserAlert({ alert, currentUser });
+      setClaimAlerts((previousAlerts) => previousAlerts.filter((existingAlert) => existingAlert.id !== alert.id));
+    } catch (error) {
+      setMessage(error.message || "Unable to dismiss alert.");
+    }
+  }
+
+  function dismissAndReturn(match) {
+    dismissMatch(match);
+    setScreen(matchOriginScreen(match));
+  }
+
+  function goBack() {
+    if (screen === "detail" && activeMatchReview) {
+      setScreen("match");
+      return;
+    }
+
+    if (screen === "match" && activeMatchReview) {
+      setScreen(matchOriginScreen(activeMatchReview));
+      return;
+    }
+
+    setScreen("feed");
   }
 
   if (!authReady) {
@@ -509,9 +577,9 @@ function App() {
             <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
           )}
 
-          {(screen === "report" || screen === "detail") && (
+          {(screen === "report" || screen === "detail" || screen === "match") && (
             <header className="screen-header">
-              <button className="back-button" onClick={() => setScreen("feed")} type="button">
+              <button className="back-button" onClick={goBack} type="button">
                 <Icon name="back" size={20} />
                 Back
               </button>
@@ -524,9 +592,9 @@ function App() {
                 {topMatch && (
                   <button className="match-hero" onClick={openMatchScreen} type="button">
                     <span className="match-hero-label">Possible match</span>
-                    <strong>{topMatch.item.title} may match your report</strong>
-                    <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
-                    <span className="match-hero-cta">Review match →</span>
+                    <strong>{topMatch.foundItem.title} may match your report</strong>
+                    <small>{topMatch.score}% similar to your "{topMatch.matchedLostItem.title}"</small>
+                    <span className="match-hero-cta">Review match</span>
                   </button>
                 )}
 
@@ -587,30 +655,44 @@ function App() {
                 item={selectedItem}
                 matches={matchSuggestions}
                 message={message}
+                matchContext={
+                  activeMatchReview?.foundItem.id === selectedItem?.id ||
+                  activeMatchReview?.matchedLostItem.id === selectedItem?.id
+                    ? activeMatchReview
+                    : null
+                }
                 onClaimChange={updateClaimForm}
                 onClaimSubmit={handleClaimSubmit}
                 onClaimStatusChange={handleClaimStatusChange}
-                onDismissMatch={dismissVerifyMatch}
+                onDismissMatch={dismissMatch}
                 onResolve={handleResolveItem}
-                onSelectItem={openItem}
+                onSelectMatch={(match) => openItem(match.foundItem.id, match)}
               />
             )}
 
-            {screen === "match" && activeMatch && (
-              <MatchScreen
-                match={activeMatch}
-                onClaim={() => openItem(activeMatch.item.id)}
-                onDismiss={() => setScreen("feed")}
+            {screen === "match" && activeMatchReview && (
+              <MatchReviewPanel
+                match={activeMatchReview}
+                onClaim={(match) => openItem(match.foundItem.id, match)}
+                onDismiss={dismissAndReturn}
+                onViewDetails={openItem}
               />
             )}
 
-            {screen === "alerts" && <AlertsScreen alerts={alerts} onOpen={openItem} />}
+            {screen === "alerts" && (
+              <AlertsScreen
+                alerts={alerts}
+                onDismissAlert={dismissAlert}
+                onOpenClaim={openItem}
+                onReviewMatch={openMatchScreenFromList}
+              />
+            )}
 
             {screen === "verify" && (
               <VerifyScreen
                 verifyMatches={verifyMatches}
-                onReview={openItem}
-                onDismiss={dismissVerifyMatch}
+                onReview={openMatchScreenFromList}
+                onDismiss={dismissMatch}
               />
             )}
 
@@ -618,7 +700,10 @@ function App() {
               <AccountPanel
                 currentUser={currentUser}
                 claimSummary={claimSummary}
+                matchReviews={accountMatchReviews}
+                onDismissMatch={dismissMatch}
                 onOpenItem={openItem}
+                onReviewMatch={openMatchScreenFromList}
                 onSignOut={handleSignOut}
                 userFoundItems={userFoundItems}
                 userLostItems={userLostItems}
@@ -627,7 +712,7 @@ function App() {
           </div>
 
           <BottomTabs
-            active={screen}
+            active={activeBottomTab(screen, activeMatchReview)}
             alertCount={alerts.length}
             verifyCount={verifyMatches.length}
             onReport={() => setReportSheetOpen(true)}
@@ -660,6 +745,72 @@ function imageSignatureKey(signature) {
   }
 
   return "";
+}
+
+function buildMatchReview(match, origin) {
+  if (!match) {
+    return null;
+  }
+
+  const foundItem =
+    match.foundItem || (match.item?.type === "found" ? match.item : match.sourceItem?.type === "found" ? match.sourceItem : null);
+  const matchedLostItem =
+    match.matchedLostItem || (match.item?.type === "lost" ? match.item : match.sourceItem?.type === "lost" ? match.sourceItem : null);
+
+  if (!foundItem || !matchedLostItem) {
+    return null;
+  }
+
+  return {
+    foundItem,
+    id: matchKey(matchedLostItem.id, foundItem.id),
+    matchedLostItem,
+    origin,
+    reasons: match.reasons || [],
+    score: match.score || 0
+  };
+}
+
+function matchKey(lostItemId, foundItemId) {
+  return `${lostItemId}:${foundItemId}`;
+}
+
+function matchOriginScreen(match) {
+  return ["account", "alerts", "verify"].includes(match?.origin) ? match.origin : "feed";
+}
+
+function activeBottomTab(screen, activeMatchReview) {
+  if ((screen === "match" || screen === "detail") && ["account", "alerts", "verify"].includes(activeMatchReview?.origin)) {
+    return activeMatchReview.origin;
+  }
+
+  return screen;
+}
+
+function readDismissedMatchKeys() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const storedKeys = JSON.parse(window.localStorage.getItem("findit.dismissedMatches") || "[]");
+
+    return Array.isArray(storedKeys) ? storedKeys.filter((key) => typeof key === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDismissedMatchKeys(keys) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem("findit.dismissedMatches", JSON.stringify(keys));
+  } catch {
+    // Ignore storage failures so match review still works in restricted browsers.
+  }
 }
 
 export default App;

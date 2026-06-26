@@ -14,6 +14,7 @@ import {
   doc,
   getDocs,
   getFirestore,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -269,17 +270,18 @@ export function subscribeToUserAlerts({ currentUser, onAlerts, onError }) {
     return onSnapshot(
       alertsQuery,
       (snapshot) => {
-        const alerts = snapshot.docs
-          .map((alertDoc) => {
-            const alert = alertDoc.data();
+	        const alerts = snapshot.docs
+	          .map((alertDoc) => {
+	            const alert = alertDoc.data();
 
-            return {
-              id: alertDoc.id,
-              ...alert,
-              createdAt: normalizeFirestoreDate(alert.createdAt)
-            };
-          })
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+	            return {
+	              id: alertDoc.id,
+	              ...alert,
+	              createdAt: normalizeFirestoreDate(alert.createdAt)
+	            };
+	          })
+	          .filter((alert) => alert.status !== "dismissed")
+	          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         onAlerts(alerts);
       },
@@ -289,7 +291,24 @@ export function subscribeToUserAlerts({ currentUser, onAlerts, onError }) {
     onError(error.message || "Unable to load alerts.");
     onAlerts([]);
     return () => {};
+	  }
+}
+
+export async function dismissUserAlert({ alert, currentUser }) {
+  if (!alert?.id) {
+    return;
   }
+
+  if (alert.recipientId !== currentUser.id) {
+    throw new Error("You can only dismiss your own alerts.");
+  }
+
+  const { db } = ensureFirebase();
+
+  await updateDoc(doc(db, "alerts", alert.id), {
+    dismissedAt: serverTimestamp(),
+    status: "dismissed"
+  });
 }
 
 export async function fetchClaims({ currentUser, item }) {
@@ -393,6 +412,14 @@ export async function createClaim({ item, currentUser, claim }) {
   }
 
   const { db } = ensureFirebase();
+  const claimsRef = collection(db, "items", item.id, "claims");
+  const existingClaimsQuery = query(claimsRef, where("claimantId", "==", currentUser.id), limit(1));
+  const existingClaims = await getDocs(existingClaimsQuery);
+
+  if (!existingClaims.empty) {
+    throw new Error("You already sent a claim request for this item.");
+  }
+
   const claimBody = {
     itemId: item.id,
     itemOwnerId: item.userId,
@@ -405,7 +432,7 @@ export async function createClaim({ item, currentUser, claim }) {
   };
 
   const batch = writeBatch(db);
-  const claimRef = doc(collection(db, "items", item.id, "claims"));
+  const claimRef = doc(db, "items", item.id, "claims", currentUser.id);
   const alertRef = doc(collection(db, "alerts"));
   const createdAt = serverTimestamp();
 

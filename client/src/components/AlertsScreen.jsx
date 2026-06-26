@@ -1,7 +1,6 @@
-import { getMatchConfidence } from "../utils/matching.js";
+import { MatchSummaryCard } from "./MatchReview.jsx";
 
-export function AlertsScreen({ alerts, onOpen }) {
-  // TODO: let users dismiss an alert once they've checked it
+export function AlertsScreen({ alerts, onDismissAlert, onOpenClaim, onReviewMatch }) {
   return (
     <section className="alerts-screen">
       <div className="panel-heading">
@@ -13,54 +12,42 @@ export function AlertsScreen({ alerts, onOpen }) {
         <p className="empty-state">
           No match alerts yet. When a found item looks like one of your reports, it will show up here.
         </p>
-      ) : (
-        <div className="alert-list">
-          {alerts.map((alert) => {
-            if (alert.type === "claim") {
-              return (
-                <button
-                  className="alert-card text-only"
-                  key={alert.id}
-                  onClick={() => onOpen(alert.itemId)}
-                  type="button"
-                >
-                  <span>
-                    <strong>{alert.claimantName} sent a claim</strong>
-                    <small>
-                      {alert.itemTitle} · {alert.itemType} report
-                    </small>
-                    {alert.message && (
-                      <span className="reason-chips">
-                        <em className="reason-chip">{alert.message}</em>
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            }
+	      ) : (
+	        <div className="alert-list">
+	          {alerts.map((alert) => {
+	            if (alert.type === "claim") {
+	              return (
+	                <article className="alert-card text-only" key={alert.id}>
+	                  <button className="alert-card-main" onClick={() => onOpenClaim(alert.itemId)} type="button">
+	                    <strong>{alert.claimantName} sent a claim</strong>
+	                    <small>
+	                      {alert.itemTitle} · {alert.itemType} report
+	                    </small>
+	                    {alert.message && (
+	                      <span className="reason-chips">
+	                        <em className="reason-chip">{alert.message}</em>
+	                      </span>
+	                    )}
+	                  </button>
+	                  <button className="secondary-button quiet" onClick={() => onDismissAlert(alert)} type="button">
+	                    Dismiss
+	                  </button>
+	                </article>
+	              );
+	            }
 
-            const { item, reasons = [], score, sourceItem } = alert;
-
-            return (
-              <button className="alert-card" key={item.id} onClick={() => onOpen(item.id)} type="button">
-                {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
-                <span>
-                  <strong>{item.title} may be yours</strong>
-                  <small>
-                    Matches your "{sourceItem.title}" · {getMatchConfidence(score)} · {score}%
-                  </small>
-                  {reasons.length > 0 && (
-                    <span className="reason-chips">
-                      {reasons.map((reason) => (
-                        <em className="reason-chip" key={reason}>{reason}</em>
-                      ))}
-                    </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+	            return (
+	              <MatchSummaryCard
+	                actionLabel="Review match"
+	                dismissLabel="Dismiss"
+	                key={alert.id}
+	                match={alert}
+	                onDismiss={onDismissAlert}
+	                onReview={onReviewMatch}
+	              />
+	            );
+	          })}
+	        </div>
       )}
     </section>
   );

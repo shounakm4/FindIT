@@ -1,5 +1,6 @@
 import { formatDate } from "../utils/date.js";
 import { getMatchConfidence } from "../utils/matching.js";
+import { MatchEvidence, MatchSummaryCard } from "./MatchReview.jsx";
 
 const CLAIM_STATUSES = ["sent", "reviewing", "accepted", "rejected"];
 
@@ -14,12 +15,13 @@ export function ItemDetail({
   item,
   matches,
   message,
+  matchContext,
   onClaimChange,
   onClaimSubmit,
   onClaimStatusChange,
   onDismissMatch,
   onResolve,
-  onSelectItem
+  onSelectMatch
 }) {
   if (!item) {
     return (
@@ -35,6 +37,8 @@ export function ItemDetail({
 
   const isOwner = item.userId === currentUser.id;
   const status = item.status || "open";
+  const canShowMatchEvidence = matchContext && matchContext.foundItem.id === item.id && !isOwner;
+  const currentUserClaim = !isOwner ? claims.find((claim) => claim.claimantId === currentUser.id) : null;
 
   return (
     <section className="glass-panel detail-panel" id="detail">
@@ -74,6 +78,8 @@ export function ItemDetail({
 
       <p className="detail-description">{item.description}</p>
 
+      {canShowMatchEvidence && <MatchEvidence match={matchContext} />}
+
       {isOwner ? (
         <div className="owner-actions">
           <button
@@ -87,6 +93,20 @@ export function ItemDetail({
         </div>
       ) : status === "resolved" ? (
         <p className="empty-state resolved-note">This report has been resolved, so new claim requests are closed.</p>
+      ) : currentUserClaim ? (
+        <div className="claim-sent-note">
+          <div className="panel-heading compact">
+            <p className="panel-label">Claim</p>
+            <h3>Claim request already sent</h3>
+          </div>
+          <p>
+            You already sent a claim request for this item. Its current status is{" "}
+            <span className={`claim-status ${currentUserClaim.status || "sent"}`}>
+              {currentUserClaim.status || "sent"}
+            </span>
+            .
+          </p>
+        </div>
       ) : (
         <form className="claim-form" onSubmit={onClaimSubmit}>
           <div className="panel-heading compact">
@@ -123,17 +143,7 @@ export function ItemDetail({
       {message && <p className="message">{message}</p>}
 
       {isOwner && item.type === "lost" && highConfidenceMatches.length > 0 && (
-        <section
-          className="detail-section"
-          style={{
-            display: "grid",
-            gap: "14px",
-            padding: "14px",
-            border: "1px solid rgba(241, 143, 1, 0.38)",
-            borderRadius: "18px",
-            background: "rgba(241, 143, 1, 0.12)"
-          }}
-        >
+        <section className="detail-section match-action-section">
           <div className="panel-heading compact">
             <p className="panel-label">Action Required</p>
             <h3>Verify These Found Items</h3>
@@ -143,38 +153,15 @@ export function ItemDetail({
             only after confirming the details match.
           </p>
           <div className="match-list">
-            {highConfidenceMatches.map((matchRecord) => {
-              const match = matchRecord.item || matchRecord;
-              const reasons = matchRecord.reasons || [];
-              const score = matchRecord.score || 0;
-
-              return (
-                <article
-                  className="match-card"
-                  key={match.id}
-                  style={{
-                    gridTemplateColumns: match.imageUrl ? "64px 1fr" : "1fr",
-                    alignItems: "start"
-                  }}
-                >
-                  {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
-                  <span style={{ gap: "8px" }}>
-                    <strong>{match.title}</strong>
-                    <small>
-                      {getMatchConfidence(score)} confidence · {score}%
-                    </small>
-                    <small>{reasons.length ? reasons.join(", ") : "Strong similarity across report details"}</small>
-                    <small>{match.location}</small>
-                    <button className="secondary-button" onClick={() => onSelectItem(match.id)} type="button">
-                      Review this report
-                    </button>
-                    <button className="secondary-button" onClick={() => onDismissMatch(match.id)} type="button">
-                      Dismiss
-                    </button>
-                  </span>
-                </article>
-              );
-            })}
+            {highConfidenceMatches.map((matchRecord) => (
+              <MatchSummaryCard
+                actionLabel="Review match"
+                key={matchRecord.id}
+                match={matchRecord}
+                onDismiss={onDismissMatch}
+                onReview={onSelectMatch}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -190,7 +177,21 @@ export function ItemDetail({
               <p className="empty-state">No strong matches yet.</p>
             ) : (
               matches.map(({ item: match, reasons = [], score }) => (
-                <button className="match-card" key={match.id} onClick={() => onSelectItem(match.id)} type="button">
+                <button
+                  className="match-card"
+                  key={match.id}
+                  onClick={() =>
+                    onSelectMatch({
+                      foundItem: match.type === "found" ? match : item,
+                      id: item.type === "lost" ? `${item.id}:${match.id}` : `${match.id}:${item.id}`,
+                      matchedLostItem: item.type === "lost" ? item : match,
+                      origin: "detail",
+                      reasons,
+                      score
+                    })
+                  }
+                  type="button"
+                >
                   {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
                   <span>
                     <strong>{match.title}</strong>

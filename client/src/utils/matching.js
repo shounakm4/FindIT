@@ -6,6 +6,8 @@ export {
   findAlertsForUser,
   findMatchSuggestions,
   findTopMatchForUser,
+  HIGH_CONFIDENCE_MATCH_THRESHOLD,
   getMatchConfidence,
-  getMatchReasons
+  getMatchReasons,
+  POSSIBLE_MATCH_THRESHOLD
 } from "../../../shared/matching.js";

@@ -1,9 +1,13 @@
 import { formatDate } from "../utils/date.js";
+import { MatchSummaryCard } from "./MatchReview.jsx";
 
 export function AccountPanel({
   claimSummary = { total: 0, sent: 0, reviewing: 0, accepted: 0, rejected: 0 },
   currentUser,
+  matchReviews = [],
+  onDismissMatch,
   onOpenItem,
+  onReviewMatch,
   onSignOut,
   userFoundItems = [],
   userLostItems = []
@@ -59,6 +63,26 @@ export function AccountPanel({
           </div>
         )}
       </section>
+
+      {matchReviews.length > 0 && (
+        <section className="account-matches">
+          <div className="panel-heading compact">
+            <p className="panel-label">Review</p>
+            <h3>Matches to review</h3>
+          </div>
+          <div className="match-list">
+            {matchReviews.map((match) => (
+              <MatchSummaryCard
+                actionLabel="Review match"
+                key={match.id}
+                match={match}
+                onDismiss={onDismissMatch}
+                onReview={onReviewMatch}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="account-history">
         <div className="panel-heading compact">

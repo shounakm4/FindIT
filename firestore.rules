@@ -33,8 +33,9 @@ service cloud.firestore {
 
       match /claims/{claimId} {
         allow read: if signedIn() && (request.auth.uid == itemOwner(itemId) || request.auth.uid == resource.data.claimantId);
-        allow create: if signedIn()
-          && request.auth.uid == request.resource.data.claimantId
+	        allow create: if signedIn()
+	          && claimId == request.auth.uid
+	          && request.auth.uid == request.resource.data.claimantId
           && request.auth.uid != itemOwner(itemId)
           && request.resource.data.itemId == itemId
           && request.resource.data.itemOwnerId == itemOwner(itemId)
@@ -80,7 +81,12 @@ service cloud.firestore {
         && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.itemOwnerId == request.resource.data.recipientId
         && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.claimantId == request.auth.uid
         && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.status == "sent";
-      allow update, delete: if false;
-    }
+	      allow update: if signedIn()
+	        && request.auth.uid == resource.data.recipientId
+	        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "dismissedAt"])
+	        && request.resource.data.status == "dismissed"
+	        && request.resource.data.dismissedAt == request.time;
+	      allow delete: if false;
+	    }
   }
 }
