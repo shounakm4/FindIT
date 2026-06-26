@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const vision = require("@google-cloud/vision");
@@ -9,13 +10,35 @@ const rateLimitWindows = new Map();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 
+// Vision hands these back for almost any object, so they make unrelated items look alike. Drop them.
+const GENERIC_LABELS = new Set([
+  "electronic device",
+  "gadget",
+  "technology",
+  "product",
+  "communication device",
+  "portable communications device",
+  "telephony",
+  "electronics",
+  "peripheral",
+  "output device",
+  "input device",
+  "office equipment",
+  "material property",
+  "font",
+  "multimedia",
+  "everyday carry",
+  "still life photography",
+  "automotive design"
+]);
+
 exports.analyzeImage = onCall({ region: "us-central1" }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign in before analyzing images.");
     }
 
-    const { base64Image, imageDataUrl, imageSignature, userId } = request.data || {};
+    const { base64Image, imageDataUrl, userId } = request.data || {};
 
     if (typeof userId !== "string" || userId !== request.auth.uid) {
       throw new HttpsError("permission-denied", "The image analysis userId must match the signed-in user.");
@@ -29,7 +52,8 @@ exports.analyzeImage = onCall({ region: "us-central1" }, async (request) => {
       throw new HttpsError("invalid-argument", "Send a base64-encoded image before analyzing.");
     }
 
-    const cacheKey = imageSignatureKey(imageSignature);
+    // key the cache on the actual image bytes so two different photos never share labels
+    const cacheKey = crypto.createHash("sha1").update(content).digest("hex");
     const cached = labelCache.get(cacheKey);
 
     if (cached) {
@@ -39,7 +63,7 @@ exports.analyzeImage = onCall({ region: "us-central1" }, async (request) => {
     const [result] = await client.annotateImage({
       image: { content },
       features: [
-        { type: "LABEL_DETECTION", maxResults: 10 },
+        { type: "LABEL_DETECTION", maxResults: 12 },
         { type: "LOGO_DETECTION", maxResults: 5 },
         { type: "TEXT_DETECTION", maxResults: 1 }
       ]
@@ -48,7 +72,7 @@ exports.analyzeImage = onCall({ region: "us-central1" }, async (request) => {
     const analysis = buildAnalysis(result);
     logger.info(`Vision returned ${analysis.labels.length} labels.`, analysis.labels);
 
-    if (cacheKey && analysis.labels.length) {
+    if (analysis.labels.length) {
       labelCache.set(cacheKey, analysis);
     }
 
@@ -70,15 +94,16 @@ function buildAnalysis(result) {
     found.push({ text: label.description, confidence: Number(label.score || 0) });
   });
 
+  // logos and any text printed on the item help tell similar items apart, so weight them higher
   (result.logoAnnotations || []).forEach((logo) => {
-    found.push({ text: logo.description, confidence: Number(logo.score || 0.9) });
+    found.push({ text: logo.description, confidence: Number(logo.score || 0.95) });
   });
 
   const readText = result.textAnnotations?.[0]?.description || "";
   readText
     .split(/\s+/)
     .slice(0, 8)
-    .forEach((word) => found.push({ text: word, confidence: 0.8 }));
+    .forEach((word) => found.push({ text: word, confidence: 0.85 }));
 
   return {
     labels: normalizeLabels(found),
@@ -95,7 +120,7 @@ function normalizeLabels(labels) {
     const text = String(label.text || "").trim().toLowerCase().replace(/[^a-z0-9 ]/g, "");
     const confidence = Math.max(0, Math.min(1, Number(label.confidence) || 0));
 
-    if (text.length > 2) {
+    if (text.length > 2 && !GENERIC_LABELS.has(text)) {
       byText.set(text, Math.max(byText.get(text) || 0, confidence));
     }
   });
@@ -120,13 +145,4 @@ function parseImageData({ base64Image, imageDataUrl }) {
   const value = typeof base64Image === "string" && base64Image.trim() ? base64Image : imageDataUrl;
   const match = typeof value === "string" ? value.match(/^data:[^;]+;base64,(.*)$/) : null;
   return (match?.[1] || value || "").replace(/\s/g, "");
-}
-
-function imageSignatureKey(signature) {
-  if (!signature || !signature.averageColor) {
-    return "";
-  }
-
-  const { r, g, b } = signature.averageColor;
-  return `${r}-${g}-${b}`;
 }
