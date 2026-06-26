@@ -5,13 +5,17 @@ export function AccountPanel({
   currentUser,
   onOpenItem,
   onSignOut,
+  userFoundItems = [],
   userLostItems = []
 }) {
-  const activeItems = userLostItems.filter((item) => (item.status || "open") === "open");
-  const resolvedItems = userLostItems.filter((item) => item.status === "resolved");
+  const activeLostItems = userLostItems.filter((item) => (item.status || "open") === "open");
+  const activeFoundItems = userFoundItems.filter((item) => (item.status || "open") === "open");
+  const resolvedLostItems = userLostItems.filter((item) => item.status === "resolved");
+  const resolvedFoundItems = userFoundItems.filter((item) => item.status === "resolved");
   const reportsSummary = [
-    { label: "Active lost", value: activeItems.length },
-    { label: "Resolved lost", value: resolvedItems.length },
+    { label: "Active lost", value: activeLostItems.length },
+    { label: "Active found", value: activeFoundItems.length },
+    { label: "Resolved reports", value: resolvedLostItems.length + resolvedFoundItems.length },
     { label: "Claims", value: claimSummary.total }
   ];
 
@@ -59,16 +63,18 @@ export function AccountPanel({
       <section className="account-history">
         <div className="panel-heading compact">
           <p className="panel-label">Reports</p>
-          <h3>Lost Items History</h3>
+          <h3>Report History</h3>
         </div>
 
-        {userLostItems.length === 0 ? (
-          <p className="empty-state">You haven't reported any lost items yet.</p>
+        {userLostItems.length === 0 && userFoundItems.length === 0 ? (
+          <p className="empty-state">You haven't reported any items yet.</p>
         ) : (
           <>
-            {activeItems.length > 0 && <HistoryGroup items={activeItems} onOpenItem={onOpenItem} title="Active" />}
-            {resolvedItems.length > 0 && (
-              <HistoryGroup items={resolvedItems} onOpenItem={onOpenItem} title="Resolved" />
+            {userLostItems.length > 0 && (
+              <HistoryGroup items={userLostItems} onOpenItem={onOpenItem} title="Lost items" />
+            )}
+            {userFoundItems.length > 0 && (
+              <HistoryGroup items={userFoundItems} onOpenItem={onOpenItem} title="Found items" />
             )}
           </>
         )}
@@ -85,7 +91,7 @@ function HistoryGroup({ items, onOpenItem, title }) {
         {items.map((item) => (
           <button className="history-item" key={item.id} onClick={() => onOpenItem(item.id)} type="button">
             <strong>{item.title}</strong>
-            <small>{item.location}</small>
+            <small>{item.type} · {item.location}</small>
             <small>{formatDate(item.createdAt)}</small>
             <span className={`status-pill ${item.status || "open"}`}>{item.status || "open"}</span>
           </button>

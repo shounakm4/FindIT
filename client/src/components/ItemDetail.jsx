@@ -17,6 +17,7 @@ export function ItemDetail({
   onClaimChange,
   onClaimSubmit,
   onClaimStatusChange,
+  onDismissMatch,
   onResolve,
   onSelectItem
 }) {
@@ -90,7 +91,7 @@ export function ItemDetail({
         <form className="claim-form" onSubmit={onClaimSubmit}>
           <div className="panel-heading compact">
             <p className="panel-label">Claim</p>
-            <h3>{item.type === "lost" ? "I found this" : "This might be mine"}</h3>
+            <h3>Send a claim request</h3>
           </div>
           <label>
             Message
@@ -166,6 +167,9 @@ export function ItemDetail({
                     <small>{match.location}</small>
                     <button className="secondary-button" onClick={() => onSelectItem(match.id)} type="button">
                       Review this report
+                    </button>
+                    <button className="secondary-button" onClick={() => onDismissMatch(match.id)} type="button">
+                      Dismiss
                     </button>
                   </span>
                 </article>

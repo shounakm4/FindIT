@@ -24,6 +24,7 @@ import {
   registerUser,
   resendVerificationEmail,
   resolveItem,
+  subscribeToUserAlerts,
   subscribeToAuth,
   updateClaimStatus
 } from "./services/firebaseClient.js";
@@ -66,6 +67,7 @@ function App() {
   const [screen, setScreen] = useState("feed");
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [activeMatch, setActiveMatch] = useState(null);
+  const [claimAlerts, setClaimAlerts] = useState([]);
   const [dismissedVerifyIds, setDismissedVerifyIds] = useState([]);
 
   const selectedItem = useMemo(
@@ -80,9 +82,14 @@ function App() {
   const foundFeedItems = useMemo(() => filteredItems.filter((item) => item.type === "found"), [filteredItems]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
   const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
-  const alerts = useMemo(() => findAlertsForUser(items, currentUser), [currentUser, items]);
+  const matchAlerts = useMemo(() => findAlertsForUser(items, currentUser), [currentUser, items]);
+  const alerts = useMemo(() => [...claimAlerts, ...matchAlerts], [claimAlerts, matchAlerts]);
   const userLostItems = useMemo(
     () => items.filter((item) => item.userId === currentUser?.id && item.type === "lost"),
+    [items, currentUser]
+  );
+  const userFoundItems = useMemo(
+    () => items.filter((item) => item.userId === currentUser?.id && item.type === "found"),
     [items, currentUser]
   );
   const verifyMatches = useMemo(() => {
@@ -125,6 +132,7 @@ function App() {
 
     return items
       .filter((item) => item.id !== selectedItem.id && item.type === "found" && (item.status || "open") === "open")
+      .filter((item) => !dismissedVerifyIds.includes(item.id))
       .map((candidate) => ({
         item: candidate,
         score: calculateMatchScore(selectedItem, candidate),
@@ -132,7 +140,7 @@ function App() {
       }))
       .filter((match) => match.score > 65)
       .sort((a, b) => b.score - a.score);
-  }, [items, selectedItem]);
+  }, [dismissedVerifyIds, items, selectedItem]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -177,6 +185,19 @@ function App() {
 
     loadClaimSummary();
   }, [items, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setClaimAlerts([]);
+      return () => {};
+    }
+
+    return subscribeToUserAlerts({
+      currentUser,
+      onAlerts: setClaimAlerts,
+      onError: setMessage
+    });
+  }, [currentUser]);
 
   async function loadItems() {
     try {
@@ -416,6 +437,7 @@ function App() {
       await logoutUser();
       setCurrentUser(null);
       setItems([]);
+      setClaimAlerts([]);
       setSelectedItemId("");
       setMessage("");
     } catch (error) {
@@ -442,6 +464,10 @@ function App() {
     setReportSheetOpen(false);
     setMessage("");
     setScreen("report");
+  }
+
+  function dismissVerifyMatch(id) {
+    setDismissedVerifyIds((previousIds) => (previousIds.includes(id) ? previousIds : [...previousIds, id]));
   }
 
   if (!authReady) {
@@ -564,6 +590,7 @@ function App() {
                 onClaimChange={updateClaimForm}
                 onClaimSubmit={handleClaimSubmit}
                 onClaimStatusChange={handleClaimStatusChange}
+                onDismissMatch={dismissVerifyMatch}
                 onResolve={handleResolveItem}
                 onSelectItem={openItem}
               />
@@ -583,7 +610,7 @@ function App() {
               <VerifyScreen
                 verifyMatches={verifyMatches}
                 onReview={openItem}
-                onDismiss={(id) => setDismissedVerifyIds((previousIds) => [...previousIds, id])}
+                onDismiss={dismissVerifyMatch}
               />
             )}
 
@@ -593,6 +620,7 @@ function App() {
                 claimSummary={claimSummary}
                 onOpenItem={openItem}
                 onSignOut={handleSignOut}
+                userFoundItems={userFoundItems}
                 userLostItems={userLostItems}
               />
             )}

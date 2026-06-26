@@ -15,24 +15,51 @@ export function AlertsScreen({ alerts, onOpen }) {
         </p>
       ) : (
         <div className="alert-list">
-          {alerts.map(({ item, reasons = [], score, sourceItem }) => (
-            <button className="alert-card" key={item.id} onClick={() => onOpen(item.id)} type="button">
-              {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
-              <span>
-                <strong>{item.title} may be yours</strong>
-                <small>
-                  Matches your “{sourceItem.title}” · {getMatchConfidence(score)} · {score}%
-                </small>
-                {reasons.length > 0 && (
-                  <span className="reason-chips">
-                    {reasons.map((reason) => (
-                      <em className="reason-chip" key={reason}>{reason}</em>
-                    ))}
+          {alerts.map((alert) => {
+            if (alert.type === "claim") {
+              return (
+                <button
+                  className="alert-card text-only"
+                  key={alert.id}
+                  onClick={() => onOpen(alert.itemId)}
+                  type="button"
+                >
+                  <span>
+                    <strong>{alert.claimantName} sent a claim</strong>
+                    <small>
+                      {alert.itemTitle} · {alert.itemType} report
+                    </small>
+                    {alert.message && (
+                      <span className="reason-chips">
+                        <em className="reason-chip">{alert.message}</em>
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-            </button>
-          ))}
+                </button>
+              );
+            }
+
+            const { item, reasons = [], score, sourceItem } = alert;
+
+            return (
+              <button className="alert-card" key={item.id} onClick={() => onOpen(item.id)} type="button">
+                {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
+                <span>
+                  <strong>{item.title} may be yours</strong>
+                  <small>
+                    Matches your "{sourceItem.title}" · {getMatchConfidence(score)} · {score}%
+                  </small>
+                  {reasons.length > 0 && (
+                    <span className="reason-chips">
+                      {reasons.map((reason) => (
+                        <em className="reason-chip" key={reason}>{reason}</em>
+                      ))}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </section>

@@ -14,6 +14,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/items/$(itemId)).data.userId;
     }
 
+    function item(itemId) {
+      return get(/databases/$(database)/documents/items/$(itemId));
+    }
+
+    function claimAfter(itemId, claimId) {
+      return getAfter(/databases/$(database)/documents/items/$(itemId)/claims/$(claimId));
+    }
+
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
@@ -38,6 +46,41 @@ service cloud.firestore {
           && request.resource.data.updatedBy == request.auth.uid;
         allow delete: if false;
       }
+    }
+
+    match /alerts/{alertId} {
+      allow read: if signedIn() && request.auth.uid == resource.data.recipientId;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "type",
+          "recipientId",
+          "createdBy",
+          "itemId",
+          "itemTitle",
+          "itemType",
+          "claimId",
+          "claimantId",
+          "claimantName",
+          "message",
+          "status",
+          "createdAt"
+        ])
+        && request.resource.data.type == "claim"
+        && request.resource.data.status == "unread"
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.claimantId == request.auth.uid
+        && request.resource.data.recipientId == itemOwner(request.resource.data.itemId)
+        && request.resource.data.recipientId != request.auth.uid
+        && request.resource.data.itemTitle == item(request.resource.data.itemId).data.title
+        && request.resource.data.itemType == item(request.resource.data.itemId).data.type
+        && request.resource.data.message is string
+        && request.resource.data.claimantName is string
+        && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.itemId == request.resource.data.itemId
+        && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.itemOwnerId == request.resource.data.recipientId
+        && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.claimantId == request.auth.uid
+        && claimAfter(request.resource.data.itemId, request.resource.data.claimId).data.status == "sent";
+      allow update, delete: if false;
     }
   }
 }

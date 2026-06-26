@@ -14,11 +14,13 @@ import {
   doc,
   getDocs,
   getFirestore,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
   where
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -89,6 +91,10 @@ function mapFirebaseError(error) {
 
 function normalizeClaimStatus(status) {
   return ["sent", "reviewing", "accepted", "rejected"].includes(status) ? status : "sent";
+}
+
+function normalizeFirestoreDate(value) {
+  return value?.toDate?.().toISOString?.() || value || new Date().toISOString();
 }
 
 export function subscribeToAuth(callback, onError) {
@@ -242,9 +248,40 @@ export async function fetchItems() {
     return {
       id: itemDoc.id,
       ...item,
-      createdAt: item.createdAt?.toDate?.().toISOString?.() || item.createdAt || new Date().toISOString()
+      createdAt: normalizeFirestoreDate(item.createdAt)
     };
   });
+}
+
+export function subscribeToUserAlerts({ currentUser, onAlerts, onError }) {
+  try {
+    const { db } = ensureFirebase();
+    const alertsQuery = query(collection(db, "alerts"), where("recipientId", "==", currentUser.id));
+
+    return onSnapshot(
+      alertsQuery,
+      (snapshot) => {
+        const alerts = snapshot.docs
+          .map((alertDoc) => {
+            const alert = alertDoc.data();
+
+            return {
+              id: alertDoc.id,
+              ...alert,
+              createdAt: normalizeFirestoreDate(alert.createdAt)
+            };
+          })
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        onAlerts(alerts);
+      },
+      (error) => onError(error.message || "Unable to load alerts.")
+    );
+  } catch (error) {
+    onError(error.message || "Unable to load alerts.");
+    onAlerts([]);
+    return () => {};
+  }
 }
 
 export async function fetchClaims({ currentUser, item }) {
@@ -261,7 +298,7 @@ export async function fetchClaims({ currentUser, item }) {
       id: claimDoc.id,
       ...claim,
       status: normalizeClaimStatus(claim.status),
-      createdAt: claim.createdAt?.toDate?.().toISOString?.() || claim.createdAt || new Date().toISOString()
+      createdAt: normalizeFirestoreDate(claim.createdAt)
     };
   });
 
@@ -356,11 +393,34 @@ export async function createClaim({ item, currentUser, claim }) {
     claimantEmail: currentUser.email,
     message: claim.message.trim(),
     contact: claim.contact.trim(),
-    status: "sent",
-    createdAt: serverTimestamp()
+    status: "sent"
   };
 
-  const claimRef = await addDoc(collection(db, "items", item.id, "claims"), claimBody);
+  const batch = writeBatch(db);
+  const claimRef = doc(collection(db, "items", item.id, "claims"));
+  const alertRef = doc(collection(db, "alerts"));
+  const createdAt = serverTimestamp();
+
+  batch.set(claimRef, {
+    ...claimBody,
+    createdAt
+  });
+  batch.set(alertRef, {
+    type: "claim",
+    recipientId: item.userId,
+    createdBy: currentUser.id,
+    itemId: item.id,
+    itemTitle: item.title,
+    itemType: item.type,
+    claimId: claimRef.id,
+    claimantId: currentUser.id,
+    claimantName: currentUser.name,
+    message: claim.message.trim(),
+    status: "unread",
+    createdAt
+  });
+
+  await batch.commit();
 
   return {
     id: claimRef.id,
