@@ -1,4 +1,4 @@
-import { itemCategories } from "../constants/forms.js";
+import { itemCategories, nusLocations } from "../constants/forms.js";
 
 export function FeedControls({ filters, onChange, onSelectCategory }) {
   const categories = ["all", ...itemCategories];
@@ -43,6 +43,15 @@ export function FeedControls({ filters, onChange, onSelectCategory }) {
             <option value="all">All</option>
             <option value="open">Open</option>
             <option value="resolved">Resolved</option>
+          </select>
+        </label>
+        <label>
+          Location
+          <select name="location" value={filters.location} onChange={onChange}>
+            <option value="all">All</option>
+            {nusLocations.map((location) => (
+              <option key={location} value={location}>{location}</option>
+            ))}
           </select>
         </label>
         <label>

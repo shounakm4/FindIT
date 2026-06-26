@@ -1,3 +1,5 @@
+import { nusLocations } from "../constants/forms.js";
+
 export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubmit }) {
   return (
     <section className="glass-panel report-panel" id="report">
@@ -37,7 +39,14 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
           </label>
           <label>
             Location
-            <input name="location" value={itemForm.location} onChange={onChange} placeholder="COM3, Level 2" required />
+            <select name="location" value={itemForm.location} onChange={onChange} required>
+              <option value="" disabled>
+                Select a location
+              </option>
+              {nusLocations.map((location) => (
+                <option key={location} value={location}>{location}</option>
+              ))}
+            </select>
           </label>
         </div>
 
