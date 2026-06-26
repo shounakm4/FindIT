@@ -273,6 +273,19 @@ export async function logoutUser() {
   await signOut(auth);
 }
 
+export async function updateTelegramContact({ currentUser, telegramContact }) {
+  const normalized = normalizeTelegramContact(telegramContact);
+
+  if (!normalized) {
+    throw new Error("Please add your Telegram contact.");
+  }
+
+  const { db } = ensureFirebase();
+  await setDoc(doc(db, "users", currentUser.id), { telegramContact: normalized }, { merge: true });
+
+  return normalized;
+}
+
 function dataUrlToBase64(imageDataUrl) {
   if (typeof imageDataUrl !== "string") {
     return "";

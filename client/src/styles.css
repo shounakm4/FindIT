@@ -1445,3 +1445,8 @@ textarea {
   font-size: 0.62rem;
   font-weight: 800;
 }
+
+.telegram-form {
+  display: grid;
+  gap: 12px;
+}

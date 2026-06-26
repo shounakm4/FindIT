@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatDate } from "../utils/date.js";
 import { MatchSummaryCard } from "./MatchReview.jsx";
 
@@ -8,6 +9,7 @@ export function AccountPanel({
   onDismissMatch,
   onOpenItem,
   onReviewMatch,
+  onSaveTelegram,
   onSignOut,
   userFoundItems = [],
   userLostItems = []
@@ -22,6 +24,25 @@ export function AccountPanel({
     { label: "Resolved reports", value: resolvedLostItems.length + resolvedFoundItems.length },
     { label: "Claims", value: claimSummary.total }
   ];
+
+  const [telegram, setTelegram] = useState(currentUser.telegramContact || "");
+  const [savingTelegram, setSavingTelegram] = useState(false);
+  const [telegramMessage, setTelegramMessage] = useState("");
+
+  async function saveTelegram(event) {
+    event.preventDefault();
+    setTelegramMessage("");
+
+    try {
+      setSavingTelegram(true);
+      await onSaveTelegram(telegram);
+      setTelegramMessage("Telegram contact saved.");
+    } catch (error) {
+      setTelegramMessage(error.message || "Could not save your contact.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  }
 
   return (
     <aside className="glass-panel account-panel" id="account">
@@ -40,6 +61,31 @@ export function AccountPanel({
           Sign out
         </button>
       </div>
+
+      <section className="account-contact">
+        <div className="panel-heading compact">
+          <p className="panel-label">Contact</p>
+          <h3>Telegram</h3>
+        </div>
+        <form className="telegram-form" onSubmit={saveTelegram}>
+          <label>
+            Telegram handle
+            <input
+              name="telegram"
+              value={telegram}
+              onChange={(event) => setTelegram(event.target.value)}
+              placeholder="@yourhandle"
+            />
+          </label>
+          {!currentUser.telegramContact && (
+            <p className="empty-state">Add this so people can reach you about claims.</p>
+          )}
+          <button className="primary-button" disabled={savingTelegram} type="submit">
+            {savingTelegram ? "Saving..." : "Save contact"}
+          </button>
+          {telegramMessage && <p className="message">{telegramMessage}</p>}
+        </form>
+      </section>
 
       <section className="reports-shortcut">
         <div className="panel-heading compact">

@@ -27,7 +27,8 @@ import {
   resolveItem,
   subscribeToUserAlerts,
   subscribeToAuth,
-  updateClaimStatus
+  updateClaimStatus,
+  updateTelegramContact
 } from "./services/firebaseClient.js";
 import { createImageSignature, readFileAsDataUrl } from "./utils/imageFiles.js";
 import {
@@ -474,6 +475,11 @@ function App() {
     }
   }
 
+  async function handleSaveTelegram(telegramContact) {
+    const normalized = await updateTelegramContact({ currentUser, telegramContact });
+    setCurrentUser({ ...currentUser, telegramContact: normalized });
+  }
+
   function openItem(itemId, matchContext = null) {
     setActiveMatchReview(matchContext);
     setSelectedItemId(itemId);
@@ -708,6 +714,7 @@ function App() {
                 onDismissMatch={dismissMatch}
                 onOpenItem={openItem}
                 onReviewMatch={openMatchScreenFromList}
+                onSaveTelegram={handleSaveTelegram}
                 onSignOut={handleSignOut}
                 userFoundItems={userFoundItems}
                 userLostItems={userLostItems}
