@@ -77,15 +77,30 @@ function normalizeTelegramContact(contact = "") {
   return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
 }
 
-async function publicUser(user) {
+async function ensureProfile(user) {
   const { db } = ensureFirebase();
-  const profileSnapshot = await getDoc(doc(db, "users", user.uid));
+  const ref = doc(db, "users", user.uid);
+  const snapshot = await getDoc(ref);
+  const existing = snapshot.exists() ? snapshot.data() : null;
 
-  if (!profileSnapshot.exists()) {
-    throw new Error("Your account profile was removed. Please register again.");
+  // self-heal: a signed-in account whose profile doc went missing (or is incomplete) gets a basic one rebuilt
+  if (!existing || !existing.email) {
+    const profile = {
+      name: existing?.name || user.displayName || user.email.split("@")[0],
+      email: user.email,
+      emailVerified: user.emailVerified,
+      telegramContact: existing?.telegramContact || "",
+      createdAt: existing?.createdAt || serverTimestamp()
+    };
+    await setDoc(ref, profile, { merge: true });
+    return { ...existing, ...profile };
   }
 
-  const profile = profileSnapshot.data();
+  return existing;
+}
+
+async function publicUser(user) {
+  const profile = await ensureProfile(user);
 
   return {
     id: user.uid,
@@ -148,8 +163,8 @@ export function subscribeToAuth(callback, onError) {
 
         publicUser(user)
           .then(callback)
-          .catch((error) => {
-            onError(error.message || "Unable to load your profile.");
+          .catch(() => {
+            // profile could not be loaded or rebuilt (e.g. the account no longer exists) — return to the login screen
             signOut(auth);
             callback(null);
           });
@@ -209,9 +224,7 @@ export async function loginUser({ email, password }) {
       throw new Error("Please verify your NUS email. We sent another verification link to your inbox.");
     }
 
-    await updateDoc(doc(db, "users", credential.user.uid), {
-      emailVerified: true
-    });
+    await setDoc(doc(db, "users", credential.user.uid), { emailVerified: true }, { merge: true });
 
     return publicUser(credential.user);
   } catch (error) {
