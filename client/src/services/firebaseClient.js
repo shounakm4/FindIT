@@ -59,7 +59,7 @@ function ensureFirebase() {
   if (!app) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // long polling keeps Firestore reachable when Safari / proxies block the streaming connection ("client is offline")
+    // long polling so Firestore still connects when Safari blocks the normal stream
     db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
     functionsClient = getFunctions(app);
     storage = getStorage(app);
@@ -84,7 +84,7 @@ async function ensureProfile(user) {
   const snapshot = await getDoc(ref);
   const existing = snapshot.exists() ? snapshot.data() : null;
 
-  // self-heal: a signed-in account whose profile doc went missing (or is incomplete) gets a basic one rebuilt
+  // if the profile doc went missing somehow, just rebuild a basic one so the account isn't locked out
   if (!existing || !existing.email) {
     const profile = {
       name: existing?.name || user.displayName || user.email.split("@")[0],
@@ -165,7 +165,7 @@ export function subscribeToAuth(callback, onError) {
         publicUser(user)
           .then(callback)
           .catch((error) => {
-            // a network blip shouldn't sign anyone out — only do that when the profile is genuinely gone
+            // don't sign out on a network error, only when the profile is actually missing
             if (error?.code === "unavailable" || /offline/i.test(error?.message || "")) {
               onError("You appear to be offline. Check your connection and refresh.");
               callback(null);
