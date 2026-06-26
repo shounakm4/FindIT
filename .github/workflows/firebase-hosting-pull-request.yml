@@ -18,6 +18,7 @@ jobs:
           node-version: 22.22.3
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

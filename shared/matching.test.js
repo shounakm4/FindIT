@@ -5,8 +5,11 @@ import {
   buildMatchAttributes,
   buildSearchKeywords,
   calculateMatchScore,
+  filterAndSortItems,
+  findAlertsForUser,
   findMatchSuggestions,
   findTopMatchForUser,
+  getMatchConfidence,
   getMatchReasons
 } from "./matching.js";
 
@@ -309,5 +312,122 @@ describe("smarter matching", () => {
 
   it("returns no top match without a signed-in user", () => {
     assert.equal(findTopMatchForUser([], null), null);
+  });
+
+  it("creates alert candidates only for the signed-in user's open lost reports", () => {
+    const user = { id: "user-1" };
+    const myOpenLostWallet = report({
+      id: "my-open-lost-wallet",
+      type: "lost",
+      title: "Black wallet",
+      description: "Black leather wallet with NUS student card",
+      location: "Central Library",
+      userId: "user-1",
+      imageLabels: [
+        { text: "wallet", confidence: 0.96 },
+        { text: "black leather", confidence: 0.9 },
+        { text: "student card", confidence: 0.84 }
+      ]
+    });
+    const myResolvedLostWallet = report({
+      id: "my-resolved-lost-wallet",
+      type: "lost",
+      title: "Black wallet",
+      description: "Black leather wallet with NUS student card",
+      location: "Central Library",
+      status: "resolved",
+      userId: "user-1",
+      imageLabels: [
+        { text: "wallet", confidence: 0.96 },
+        { text: "black leather", confidence: 0.9 },
+        { text: "student card", confidence: 0.84 }
+      ]
+    });
+    const otherUserLostWallet = report({
+      id: "other-user-lost-wallet",
+      type: "lost",
+      title: "Black wallet",
+      description: "Black leather wallet with NUS student card",
+      location: "Central Library",
+      userId: "user-2",
+      imageLabels: [
+        { text: "wallet", confidence: 0.96 },
+        { text: "black leather", confidence: 0.9 },
+        { text: "student card", confidence: 0.84 }
+      ]
+    });
+    const foundWallet = report({
+      id: "found-wallet",
+      type: "found",
+      title: "Dark billfold",
+      description: "Dark billfold with university ID",
+      location: "Central Library",
+      userId: "user-3",
+      imageLabels: [
+        { text: "billfold", confidence: 0.94 },
+        { text: "black leather", confidence: 0.91 },
+        { text: "identity card", confidence: 0.8 }
+      ]
+    });
+
+    const alerts = findAlertsForUser(
+      [myOpenLostWallet, myResolvedLostWallet, otherUserLostWallet, foundWallet],
+      user
+    );
+
+    assert.deepEqual(
+      alerts.map((alert) => [alert.sourceItem.id, alert.item.id]),
+      [["my-open-lost-wallet", "found-wallet"]]
+    );
+  });
+
+  it("filters reports by visible feed controls and sorts newest first", () => {
+    const items = [
+      report({
+        id: "old-open-wallet",
+        type: "lost",
+        title: "Black wallet",
+        description: "NUS card inside",
+        location: "Central Library",
+        createdAt: "2026-06-23T08:00:00.000Z",
+        matchAttributes: { category: "wallet" }
+      }),
+      report({
+        id: "new-resolved-wallet",
+        type: "found",
+        title: "Wallet",
+        description: "Black wallet",
+        location: "Central Library",
+        status: "resolved",
+        createdAt: "2026-06-24T08:00:00.000Z",
+        matchAttributes: { category: "wallet" }
+      }),
+      report({
+        id: "new-open-bottle",
+        type: "found",
+        title: "Bottle",
+        description: "Blue bottle",
+        location: "UTown",
+        createdAt: "2026-06-25T08:00:00.000Z",
+        matchAttributes: { category: "bottle" }
+      })
+    ];
+
+    const filtered = filterAndSortItems(items, {
+      query: "wallet",
+      type: "all",
+      status: "open",
+      category: "wallet",
+      location: "Central Library",
+      sort: "newest"
+    });
+
+    assert.deepEqual(filtered.map((item) => item.id), ["old-open-wallet"]);
+  });
+
+  it("labels match confidence at documented thresholds", () => {
+    assert.equal(getMatchConfidence(39), "Low");
+    assert.equal(getMatchConfidence(40), "Medium");
+    assert.equal(getMatchConfidence(65), "High");
   });
 });

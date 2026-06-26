@@ -205,6 +205,8 @@ export function findAlertsForUser(items, user) {
     return [];
   }
 
+  // Alerts are generated only from the signed-in user's open lost reports.
+  // Found reports stay as candidates, which prevents owners from receiving alerts for other users' items.
   const myOpenItems = items.filter(
     (item) => item.userId === user.id && item.type === "lost" && (item.status || "open") === "open"
   );
@@ -275,8 +277,8 @@ export function calculateMatchScore(baseItem, candidate) {
     candidateAttributes.category &&
     baseAttributes.category !== candidateAttributes.category;
 
-  // Labels still lead, but exact category, description, and location should be enough
-  // to lift a strong same-object report above incidental dark-object similarities.
+  // Labels still lead, while category, description, and location lift genuine same-object reports.
+  // Category conflicts are capped below the possible-match threshold to avoid noisy false positives.
   const score = Math.min(
     99,
     Math.round(
