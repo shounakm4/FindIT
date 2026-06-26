@@ -80,7 +80,12 @@ function normalizeTelegramContact(contact = "") {
 async function publicUser(user) {
   const { db } = ensureFirebase();
   const profileSnapshot = await getDoc(doc(db, "users", user.uid));
-  const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
+
+  if (!profileSnapshot.exists()) {
+    throw new Error("Your account profile was removed. Please register again.");
+  }
+
+  const profile = profileSnapshot.data();
 
   return {
     id: user.uid,
@@ -145,6 +150,7 @@ export function subscribeToAuth(callback, onError) {
           .then(callback)
           .catch((error) => {
             onError(error.message || "Unable to load your profile.");
+            signOut(auth);
             callback(null);
           });
       },
