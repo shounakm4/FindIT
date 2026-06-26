@@ -95,10 +95,49 @@ describe("smarter matching", () => {
     assert.ok(score >= 40, `expected a medium image-first match, got ${score}`);
     assert.deepEqual(
       getMatchReasons(lostWallet, foundBillfold),
-      ["similar image labels", "same category: wallet", "matching color: black, blue"]
+      ["similar image labels", "same category: wallet", "matching color: black, blue", "shared detail: student card"]
     );
     assert.deepEqual(suggestions.map(({ item }) => item.id), ["found-billfold"]);
     assert.ok(calculateMatchScore(lostWallet, foundBottle) < 25);
+  });
+
+  it("scores matching powerbanks highly when vision labels use equivalent phrases", () => {
+    const lostPowerbank = report({
+      id: "lost-powerbank",
+      type: "lost",
+      title: "Powerbank",
+      description: "Black powerbank with strap",
+      location: "COM1",
+      imageSignature: { averageColor: { r: 40, g: 40, b: 40 } },
+      imageLabels: [
+        { text: "power bank", confidence: 0.86 },
+        { text: "black", confidence: 0.7 },
+        { text: "electronics", confidence: 0.7 }
+      ]
+    });
+    const foundPowerbank = report({
+      id: "found-powerbank",
+      type: "found",
+      title: "Wireless Powerbank",
+      description: "Black portable charger",
+      location: "COM 1",
+      imageSignature: { averageColor: { r: 42, g: 42, b: 42 } },
+      imageLabels: [
+        { text: "powerbank", confidence: 0.88 },
+        { text: "black", confidence: 0.72 },
+        { text: "portable charger", confidence: 0.7 }
+      ]
+    });
+
+    const score = calculateMatchScore(lostPowerbank, foundPowerbank);
+
+    assert.ok(score >= 75, `expected a high powerbank match, got ${score}`);
+    assert.deepEqual(getMatchReasons(lostPowerbank, foundPowerbank), [
+      "similar image labels",
+      "same category: powerbank",
+      "matching color: black",
+      "similar description"
+    ]);
   });
 
   it("keeps category mismatches from becoming strong matches", () => {

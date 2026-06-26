@@ -94,7 +94,15 @@ function normalizeClaimStatus(status) {
 }
 
 function normalizeFirestoreDate(value) {
-  return value?.toDate?.().toISOString?.() || value || new Date().toISOString();
+  if (!value) {
+    return new Date().toISOString();
+  }
+
+  const timestampDate = typeof value.toDate === "function" ? value.toDate() : null;
+  const seconds = Number(value.seconds ?? value._seconds);
+  const date = timestampDate || (Number.isFinite(seconds) ? new Date(seconds * 1000) : new Date(value));
+
+  return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
 }
 
 export function subscribeToAuth(callback, onError) {

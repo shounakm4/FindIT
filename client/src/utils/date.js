@@ -1,20 +1,24 @@
 export function formatDate(value) {
-  if (!value) {
+  const date = toValidDate(value);
+
+  if (!date) {
     return "Unknown";
   }
 
   return new Intl.DateTimeFormat("en-SG", {
     dateStyle: "medium",
     timeStyle: "short"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function relativeTime(value) {
-  if (!value) {
+  const date = toValidDate(value);
+
+  if (!date) {
     return "";
   }
 
-  const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60000);
+  const minutes = Math.round((Date.now() - date.getTime()) / 60000);
 
   if (minutes < 1) {
     return "just now";
@@ -32,4 +36,22 @@ export function relativeTime(value) {
 
   const days = Math.round(hours / 24);
   return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+export function toValidDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value.toDate === "function") {
+    return toValidDate(value.toDate());
+  }
+
+  const seconds = Number(value.seconds ?? value._seconds);
+  if (Number.isFinite(seconds)) {
+    return new Date(seconds * 1000);
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
 }

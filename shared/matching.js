@@ -63,6 +63,15 @@ const CANONICAL_TOKENS = {
   university: "nus"
 };
 
+const CANONICAL_PHRASES = [
+  { pattern: /\bpower\s*banks?\b/g, replacement: "powerbank" },
+  { pattern: /\bportable\s+chargers?\b/g, replacement: "powerbank" },
+  { pattern: /\bbattery\s+banks?\b/g, replacement: "powerbank" },
+  { pattern: /\bidentity\s+cards?\b/g, replacement: "card" },
+  { pattern: /\bstudent\s+cards?\b/g, replacement: "card" },
+  { pattern: /\baccess\s+passes?\b/g, replacement: "pass" }
+];
+
 const CATEGORY_TERMS = {
   wallet: ["wallet", "billfold", "purse"],
   phone: ["phone", "iphone", "mobile", "cellphone", "handphone"],
@@ -255,19 +264,26 @@ export function calculateMatchScore(baseItem, candidate) {
   const labelScore = labelSimilarityScore(baseItem.imageLabels, candidate.imageLabels);
   const imageScore = imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature);
   const timeScore = timeProximityScore(baseItem.createdAt, candidate.createdAt);
+  const categoriesConflict =
+    baseAttributes.category &&
+    candidateAttributes.category &&
+    baseAttributes.category !== candidateAttributes.category;
 
-  // image labels matter most, then text and location. numbers are hand-tuned, might revisit after user testing
-  return Math.min(
+  // Labels still lead, but exact category, description, and location should be enough
+  // to lift a strong same-object report above incidental dark-object similarities.
+  const score = Math.min(
     99,
     Math.round(
-      labelScore * 58 +
-        imageScore * 28 +
-        textScore * 14 +
-        attributeScore * 6 +
-        locationScore * 5 +
-        timeScore * 1
+      labelScore * 42 +
+        imageScore * 20 +
+        textScore * 20 +
+        attributeScore * 25 +
+        locationScore * 12 +
+        timeScore * 3
     )
   );
+
+  return categoriesConflict ? Math.min(score, 44) : score;
 }
 
 export function getMatchReasons(baseItem, candidate) {
@@ -318,20 +334,31 @@ export function getMatchReasons(baseItem, candidate) {
     reasons.push("close report time");
   }
 
-  return reasons.slice(0, 3);
+  return reasons.slice(0, 4);
 }
 
 function tokenize(value) {
+  const text = canonicalizeText(value);
+
   return [
     ...new Set(
-      value
-        .toLowerCase()
+      text
         .replace(/[^a-z0-9\s]/g, " ")
         .split(/\s+/)
         .map(normalizeToken)
         .filter((token) => token && (token.length > 2 || token === "id") && !STOP_WORDS.has(token))
     )
   ];
+}
+
+function canonicalizeText(value) {
+  let text = String(value || "").toLowerCase();
+
+  CANONICAL_PHRASES.forEach(({ pattern, replacement }) => {
+    text = text.replace(pattern, replacement);
+  });
+
+  return text.replace(/\b(com|lt|sde|as|utown|pgp)\s+([0-9]+[a-z]?)\b/g, "$1$2");
 }
 
 function normalizeToken(token) {
@@ -360,7 +387,7 @@ function normalizeToken(token) {
 }
 
 function reportText(report) {
-  return `${report.title || ""} ${report.description || ""} ${report.location || ""}`.toLowerCase();
+  return canonicalizeText(`${report.title || ""} ${report.description || ""} ${report.location || ""}`);
 }
 
 function reportTokens(report) {
@@ -370,14 +397,27 @@ function reportTokens(report) {
 function resolveMatchAttributes(report) {
   const attributes = report.matchAttributes || {};
   const inferredAttributes = buildMatchAttributes(report);
+  const labelAttributes = buildMatchAttributes({
+    title: labelText(report.imageLabels),
+    description: "",
+    location: ""
+  });
 
   return {
-    category: attributes.category || inferredAttributes.category || "",
-    colors: attributes.colors?.length ? attributes.colors : inferredAttributes.colors || [],
-    materials: attributes.materials?.length ? attributes.materials : inferredAttributes.materials || [],
-    brands: attributes.brands?.length ? attributes.brands : inferredAttributes.brands || [],
-    identifiers: attributes.identifiers?.length ? attributes.identifiers : inferredAttributes.identifiers || []
+    category: attributes.category || inferredAttributes.category || labelAttributes.category || "",
+    colors: mergeValues(attributes.colors, inferredAttributes.colors, labelAttributes.colors),
+    materials: mergeValues(attributes.materials, inferredAttributes.materials, labelAttributes.materials),
+    brands: mergeValues(attributes.brands, inferredAttributes.brands, labelAttributes.brands),
+    identifiers: mergeValues(attributes.identifiers, inferredAttributes.identifiers, labelAttributes.identifiers)
   };
+}
+
+function labelText(labels = []) {
+  return labels.map((label) => label.text || label.description || "").join(" ");
+}
+
+function mergeValues(...valueGroups) {
+  return [...new Set(valueGroups.flatMap((values) => (Array.isArray(values) ? values : [])))];
 }
 
 function firstMatchingGroup(text, tokens, groups) {
