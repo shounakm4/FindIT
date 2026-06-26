@@ -41,9 +41,7 @@ export const emptyClaimForm = {
 
 export const defaultFeedFilters = {
   query: "",
-  type: "all",
   status: "open",
-  category: "all",
   location: "all",
   sort: "newest"
 };

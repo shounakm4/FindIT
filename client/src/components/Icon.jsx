@@ -1,10 +1,11 @@
-import { ArrowLeft, Bell, Home, Plus, User } from "lucide-react";
+import { ArrowLeft, Bell, Home, Plus, ShieldCheck, User } from "lucide-react";
 
 const ICONS = {
   feed: Home,
   plus: Plus,
   account: User,
   alerts: Bell,
+  verify: ShieldCheck,
   back: ArrowLeft
 };
 

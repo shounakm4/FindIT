@@ -1,18 +1,22 @@
 import { formatDate } from "../utils/date.js";
 import { getMatchConfidence } from "../utils/matching.js";
 
+const CLAIM_STATUSES = ["sent", "reviewing", "accepted", "rejected"];
+
 export function ItemDetail({
   claimForm,
   claims,
   currentUser,
   highConfidenceMatches = [],
   isClaimSaving,
+  updatingClaimId = "",
   isResolving,
   item,
   matches,
   message,
   onClaimChange,
   onClaimSubmit,
+  onClaimStatusChange,
   onResolve,
   onSelectItem
 }) {
@@ -117,7 +121,7 @@ export function ItemDetail({
 
       {message && <p className="message">{message}</p>}
 
-      {item.type === "lost" && highConfidenceMatches.length > 0 && (
+      {isOwner && item.type === "lost" && highConfidenceMatches.length > 0 && (
         <section
           className="detail-section"
           style={{
@@ -171,36 +175,38 @@ export function ItemDetail({
         </section>
       )}
 
-      <section className="detail-section">
-        <div className="panel-heading compact">
-          <p className="panel-label">Possible Matches</p>
-          <h3>Photo and text score</h3>
-        </div>
-        <div className="match-list">
-          {matches.length === 0 ? (
-            <p className="empty-state">No strong matches yet.</p>
-          ) : (
-            matches.map(({ item: match, reasons = [], score }) => (
-              <button className="match-card" key={match.id} onClick={() => onSelectItem(match.id)} type="button">
-                {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
-                <span>
-                  <strong>{match.title}</strong>
-                  {reasons.length ? (
-                    <span className="reason-chips">
-                      {reasons.map((reason) => (
-                        <em className="reason-chip" key={reason}>{reason}</em>
-                      ))}
-                    </span>
-                  ) : (
-                    <small>{match.location}</small>
-                  )}
-                </span>
-                <b>{getMatchConfidence(score)} match <em>{score}%</em></b>
-              </button>
-            ))
-          )}
-        </div>
-      </section>
+      {isOwner && item.type === "lost" && (
+        <section className="detail-section">
+          <div className="panel-heading compact">
+            <p className="panel-label">Possible Matches</p>
+            <h3>Photo and text score</h3>
+          </div>
+          <div className="match-list">
+            {matches.length === 0 ? (
+              <p className="empty-state">No strong matches yet.</p>
+            ) : (
+              matches.map(({ item: match, reasons = [], score }) => (
+                <button className="match-card" key={match.id} onClick={() => onSelectItem(match.id)} type="button">
+                  {match.imageUrl && <img src={match.imageUrl} alt={match.title} />}
+                  <span>
+                    <strong>{match.title}</strong>
+                    {reasons.length ? (
+                      <span className="reason-chips">
+                        {reasons.map((reason) => (
+                          <em className="reason-chip" key={reason}>{reason}</em>
+                        ))}
+                      </span>
+                    ) : (
+                      <small>{match.location}</small>
+                    )}
+                  </span>
+                  <b>{getMatchConfidence(score)} match <em>{score}%</em></b>
+                </button>
+              ))
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="detail-section">
         <div className="panel-heading compact">
@@ -213,9 +219,27 @@ export function ItemDetail({
           ) : (
             claims.map((claim) => (
               <article className="claim-card" key={claim.id}>
-                <strong>{claim.claimantName}</strong>
+                <div className="claim-card-header">
+                  <strong>{claim.claimantName}</strong>
+                  <span className={`claim-status ${claim.status || "sent"}`}>{claim.status || "sent"}</span>
+                </div>
                 <p>{claim.message}</p>
                 {isOwner && <small>{claim.contact}</small>}
+                {isOwner && (
+                  <div className="claim-status-actions" aria-label={`Update ${claim.claimantName}'s claim status`}>
+                    {CLAIM_STATUSES.map((statusOption) => (
+                      <button
+                        className={`secondary-button ${claim.status === statusOption ? "active" : ""}`}
+                        disabled={updatingClaimId === claim.id || (claim.status || "sent") === statusOption}
+                        key={statusOption}
+                        onClick={() => onClaimStatusChange(claim, statusOption)}
+                        type="button"
+                      >
+                        {statusOption}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </article>
             ))
           )}

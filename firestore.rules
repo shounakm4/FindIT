@@ -27,8 +27,16 @@ service cloud.firestore {
         allow read: if signedIn() && (request.auth.uid == itemOwner(itemId) || request.auth.uid == resource.data.claimantId);
         allow create: if signedIn()
           && request.auth.uid == request.resource.data.claimantId
-          && request.auth.uid != itemOwner(itemId);
-        allow update, delete: if false;
+          && request.auth.uid != itemOwner(itemId)
+          && request.resource.data.itemId == itemId
+          && request.resource.data.itemOwnerId == itemOwner(itemId)
+          && request.resource.data.status == "sent";
+        allow update: if signedIn()
+          && request.auth.uid == itemOwner(itemId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
+          && request.resource.data.status in ["sent", "reviewing", "accepted", "rejected"]
+          && request.resource.data.updatedBy == request.auth.uid;
+        allow delete: if false;
       }
     }
   }

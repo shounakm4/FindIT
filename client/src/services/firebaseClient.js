@@ -18,7 +18,8 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc
+  updateDoc,
+  where
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
@@ -84,6 +85,10 @@ function mapFirebaseError(error) {
   };
 
   return messages[error.code] || error.message || "Firebase request failed.";
+}
+
+function normalizeClaimStatus(status) {
+  return ["sent", "reviewing", "accepted", "rejected"].includes(status) ? status : "sent";
 }
 
 export function subscribeToAuth(callback, onError) {
@@ -242,17 +247,39 @@ export async function fetchItems() {
   });
 }
 
-export async function fetchClaims(itemId) {
+export async function fetchClaims({ currentUser, item }) {
   const { db } = ensureFirebase();
-  const snapshot = await getDocs(query(collection(db, "items", itemId, "claims"), orderBy("createdAt", "desc")));
-  return snapshot.docs.map((claimDoc) => {
+  const claimsRef = collection(db, "items", item.id, "claims");
+  const isOwner = item.userId === currentUser.id;
+  const claimsQuery = isOwner
+    ? query(claimsRef, orderBy("createdAt", "desc"))
+    : query(claimsRef, where("claimantId", "==", currentUser.id));
+  const snapshot = await getDocs(claimsQuery);
+  const claims = snapshot.docs.map((claimDoc) => {
     const claim = claimDoc.data();
     return {
       id: claimDoc.id,
       ...claim,
+      status: normalizeClaimStatus(claim.status),
       createdAt: claim.createdAt?.toDate?.().toISOString?.() || claim.createdAt || new Date().toISOString()
     };
   });
+
+  return claims.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function fetchUserClaimSummary({ currentUser, items }) {
+  const myLostItems = items.filter((item) => item.userId === currentUser.id && item.type === "lost");
+  const claimGroups = await Promise.all(myLostItems.map((item) => fetchClaims({ currentUser, item })));
+  const claims = claimGroups.flat();
+
+  return {
+    total: claims.length,
+    sent: claims.filter((claim) => (claim.status || "sent") === "sent").length,
+    reviewing: claims.filter((claim) => claim.status === "reviewing").length,
+    accepted: claims.filter((claim) => claim.status === "accepted").length,
+    rejected: claims.filter((claim) => claim.status === "rejected").length
+  };
 }
 
 export async function createItemReport({ currentUser, imageFile, report }) {
@@ -329,7 +356,7 @@ export async function createClaim({ item, currentUser, claim }) {
     claimantEmail: currentUser.email,
     message: claim.message.trim(),
     contact: claim.contact.trim(),
-    status: "open",
+    status: "sent",
     createdAt: serverTimestamp()
   };
 
@@ -339,6 +366,34 @@ export async function createClaim({ item, currentUser, claim }) {
     id: claimRef.id,
     ...claimBody,
     createdAt: new Date().toISOString()
+  };
+}
+
+export async function updateClaimStatus({ claim, currentUser, item, status }) {
+  const validStatuses = ["sent", "reviewing", "accepted", "rejected"];
+
+  if (item.userId !== currentUser.id) {
+    throw new Error("Only the reporter can update claim status.");
+  }
+
+  if (!validStatuses.includes(status)) {
+    throw new Error("Choose a valid claim status.");
+  }
+
+  const { db } = ensureFirebase();
+  const updates = {
+    status,
+    updatedAt: serverTimestamp(),
+    updatedBy: currentUser.id
+  };
+
+  await updateDoc(doc(db, "items", item.id, "claims", claim.id), updates);
+
+  return {
+    ...claim,
+    status,
+    updatedAt: new Date().toISOString(),
+    updatedBy: currentUser.id
   };
 }
 

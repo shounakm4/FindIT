@@ -11,18 +11,21 @@ import { ItemDetail } from "./components/ItemDetail.jsx";
 import { MatchScreen } from "./components/MatchScreen.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
+import { VerifyScreen } from "./components/VerifyScreen.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
   createClaim,
   createItemReport,
   fetchClaims,
   fetchItems,
+  fetchUserClaimSummary,
   loginUser,
   logoutUser,
   registerUser,
   resendVerificationEmail,
   resolveItem,
-  subscribeToAuth
+  subscribeToAuth,
+  updateClaimStatus
 } from "./services/firebaseClient.js";
 import { createImageSignature, readFileAsDataUrl } from "./utils/imageFiles.js";
 import {
@@ -49,22 +52,72 @@ function App() {
   const [isAuthSaving, setIsAuthSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isClaimSaving, setIsClaimSaving] = useState(false);
+  const [updatingClaimId, setUpdatingClaimId] = useState("");
   const [isResolving, setIsResolving] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [claimSummary, setClaimSummary] = useState({
+    total: 0,
+    sent: 0,
+    reviewing: 0,
+    accepted: 0,
+    rejected: 0
+  });
   const [feedFilters, setFeedFilters] = useState(defaultFeedFilters);
   const [screen, setScreen] = useState("feed");
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [activeMatch, setActiveMatch] = useState(null);
+  const [dismissedVerifyIds, setDismissedVerifyIds] = useState([]);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedItemId) || null,
     [items, selectedItemId]
   );
 
-  const filteredItems = useMemo(() => filterAndSortItems(items, feedFilters), [feedFilters, items]);
+  const filteredItems = useMemo(
+    () => filterAndSortItems(items, { ...feedFilters, type: "all", category: "all" }),
+    [feedFilters, items]
+  );
+  const foundFeedItems = useMemo(() => filteredItems.filter((item) => item.type === "found"), [filteredItems]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
   const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
   const alerts = useMemo(() => findAlertsForUser(items, currentUser), [currentUser, items]);
+  const userLostItems = useMemo(
+    () => items.filter((item) => item.userId === currentUser?.id && item.type === "lost"),
+    [items, currentUser]
+  );
+  const verifyMatches = useMemo(() => {
+    if (!currentUser) {
+      return [];
+    }
+
+    const myLostItems = items.filter(
+      (item) => item.userId === currentUser.id && item.type === "lost" && (item.status || "open") === "open"
+    );
+    const seen = new Map();
+
+    for (const lostItem of myLostItems) {
+      const candidates = items.filter((item) => item.type === "found" && (item.status || "open") === "open");
+
+      for (const foundItem of candidates) {
+        if (dismissedVerifyIds.includes(foundItem.id)) {
+          continue;
+        }
+
+        const score = calculateMatchScore(lostItem, foundItem);
+
+        if (score > 65 && (!seen.has(foundItem.id) || seen.get(foundItem.id).score < score)) {
+          seen.set(foundItem.id, {
+            foundItem,
+            score,
+            reasons: getMatchReasons(lostItem, foundItem),
+            matchedLostItem: lostItem
+          });
+        }
+      }
+    }
+
+    return [...seen.values()].sort((a, b) => b.score - a.score);
+  }, [items, currentUser, dismissedVerifyIds]);
   const highConfidenceMatches = useMemo(() => {
     if (selectedItem?.type !== "lost") {
       return [];
@@ -102,13 +155,28 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedItem) {
+    if (!selectedItem || !currentUser) {
       setSelectedClaims([]);
       return;
     }
 
-    loadClaims(selectedItem.id);
-  }, [selectedItem]);
+    loadClaims(selectedItem);
+  }, [selectedItem, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setClaimSummary({
+        total: 0,
+        sent: 0,
+        reviewing: 0,
+        accepted: 0,
+        rejected: 0
+      });
+      return;
+    }
+
+    loadClaimSummary();
+  }, [items, currentUser]);
 
   async function loadItems() {
     try {
@@ -119,12 +187,21 @@ function App() {
     }
   }
 
-  async function loadClaims(itemId) {
+  async function loadClaims(item) {
     try {
-      const claims = await fetchClaims(itemId);
+      const claims = await fetchClaims({ currentUser, item });
       setSelectedClaims(claims);
     } catch (error) {
       setMessage(error.message || "Unable to load claims.");
+    }
+  }
+
+  async function loadClaimSummary() {
+    try {
+      const summary = await fetchUserClaimSummary({ currentUser, items });
+      setClaimSummary(summary);
+    } catch (error) {
+      setMessage(error.message || "Unable to load claim summary.");
     }
   }
 
@@ -154,10 +231,6 @@ function App() {
       ...feedFilters,
       [event.target.name]: event.target.value
     });
-  }
-
-  function selectCategory(category) {
-    setFeedFilters({ ...feedFilters, category });
   }
 
   async function handleAuthSubmit(event) {
@@ -297,6 +370,30 @@ function App() {
     }
   }
 
+  async function handleClaimStatusChange(claim, status) {
+    if (!selectedItem || !currentUser) {
+      return;
+    }
+
+    try {
+      setUpdatingClaimId(claim.id);
+      const updatedClaim = await updateClaimStatus({
+        claim,
+        currentUser,
+        item: selectedItem,
+        status
+      });
+
+      setSelectedClaims(selectedClaims.map((existingClaim) => (existingClaim.id === claim.id ? updatedClaim : existingClaim)));
+      await loadClaimSummary();
+      setMessage(`Claim marked as ${status}.`);
+    } catch (error) {
+      setMessage(error.message || "Unable to update claim status.");
+    } finally {
+      setUpdatingClaimId("");
+    }
+  }
+
   async function handleResolveItem() {
     if (!selectedItem || !currentUser) {
       return;
@@ -382,7 +479,7 @@ function App() {
         </div>
       ) : (
         <div className="mobile-frame app-frame">
-          {(screen === "feed" || screen === "account" || screen === "alerts") && (
+          {(screen === "feed" || screen === "account" || screen === "alerts" || screen === "verify") && (
             <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
           )}
 
@@ -408,9 +505,9 @@ function App() {
                 )}
 
                 <section className="glass-panel feed-panel">
-                  <FeedControls filters={feedFilters} onChange={updateFeedFilters} onSelectCategory={selectCategory} />
+                  <FeedControls filters={feedFilters} onChange={updateFeedFilters} />
                   <div className="item-list">
-                    {filteredItems.length === 0 ? (
+                    {foundFeedItems.length === 0 ? (
                       <div className="empty-state feed-empty">
                         <p>No reports match your search yet.</p>
                         <button className="secondary-button" onClick={() => setReportSheetOpen(true)} type="button">
@@ -418,11 +515,18 @@ function App() {
                         </button>
                       </div>
                     ) : (
-                      filteredItems.map((item) => (
+                      foundFeedItems.map((item) => (
                         <ItemCard
                           item={item}
                           key={item.id}
-                          matchScore={selectedItem && item.id !== selectedItem.id ? calculateMatchScore(selectedItem, item) : null}
+                          matchScore={
+                            selectedItem &&
+                            selectedItem.type === "lost" &&
+                            selectedItem.userId === currentUser?.id &&
+                            item.id !== selectedItem.id
+                              ? calculateMatchScore(selectedItem, item)
+                              : null
+                          }
                           onSelect={() => openItem(item.id)}
                         />
                       ))
@@ -452,12 +556,14 @@ function App() {
                 currentUser={currentUser}
                 highConfidenceMatches={highConfidenceMatches}
                 isClaimSaving={isClaimSaving}
+                updatingClaimId={updatingClaimId}
                 isResolving={isResolving}
                 item={selectedItem}
                 matches={matchSuggestions}
                 message={message}
                 onClaimChange={updateClaimForm}
                 onClaimSubmit={handleClaimSubmit}
+                onClaimStatusChange={handleClaimStatusChange}
                 onResolve={handleResolveItem}
                 onSelectItem={openItem}
               />
@@ -473,12 +579,29 @@ function App() {
 
             {screen === "alerts" && <AlertsScreen alerts={alerts} onOpen={openItem} />}
 
-            {screen === "account" && <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />}
+            {screen === "verify" && (
+              <VerifyScreen
+                verifyMatches={verifyMatches}
+                onReview={openItem}
+                onDismiss={(id) => setDismissedVerifyIds((previousIds) => [...previousIds, id])}
+              />
+            )}
+
+            {screen === "account" && (
+              <AccountPanel
+                currentUser={currentUser}
+                claimSummary={claimSummary}
+                onOpenItem={openItem}
+                onSignOut={handleSignOut}
+                userLostItems={userLostItems}
+              />
+            )}
           </div>
 
           <BottomTabs
             active={screen}
             alertCount={alerts.length}
+            verifyCount={verifyMatches.length}
             onReport={() => setReportSheetOpen(true)}
             onTab={setScreen}
           />
