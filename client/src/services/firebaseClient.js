@@ -15,7 +15,7 @@ import {
   doc,
   getDocs,
   getDoc,
-  getFirestore,
+  initializeFirestore,
   limit,
   onSnapshot,
   orderBy,
@@ -59,7 +59,8 @@ function ensureFirebase() {
   if (!app) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    // long polling keeps Firestore reachable when Safari / proxies block the streaming connection ("client is offline")
+    db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
     functionsClient = getFunctions(app);
     storage = getStorage(app);
   }
@@ -163,8 +164,14 @@ export function subscribeToAuth(callback, onError) {
 
         publicUser(user)
           .then(callback)
-          .catch(() => {
-            // profile could not be loaded or rebuilt (e.g. the account no longer exists) — return to the login screen
+          .catch((error) => {
+            // a network blip shouldn't sign anyone out — only do that when the profile is genuinely gone
+            if (error?.code === "unavailable" || /offline/i.test(error?.message || "")) {
+              onError("You appear to be offline. Check your connection and refresh.");
+              callback(null);
+              return;
+            }
+
             signOut(auth);
             callback(null);
           });
