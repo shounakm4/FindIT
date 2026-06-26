@@ -3,6 +3,7 @@ export {
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,
+  findAlertsForUser,
   findMatchSuggestions,
   findTopMatchForUser,
   getMatchConfidence,

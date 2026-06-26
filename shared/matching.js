@@ -68,7 +68,7 @@ const CATEGORY_TERMS = {
   phone: ["phone", "iphone", "mobile", "cellphone", "handphone"],
   powerbank: ["powerbank", "power bank", "portable charger", "battery bank"],
   laptop: ["laptop", "macbook", "notebook"],
-  earbuds: ["earbuds", "earbud", "airpods", "airpod", "earphones", "earphone", "buds"],
+  headphones: ["earbuds", "earbud", "airpods", "airpod", "earphones", "earphone", "buds", "headphones"],
   bag: ["bag", "backpack", "rucksack", "tote", "pouch"],
   bottle: ["bottle", "flask", "tumbler"],
   card: ["card", "pass", "id"],
@@ -139,10 +139,11 @@ export function filterAndSortItems(items, filters) {
     const matchesType = filters.type === "all" || item.type === filters.type;
     const matchesStatus = filters.status === "all" || (item.status || "open") === filters.status;
     const matchesCategory = filters.category === "all" || (item.matchAttributes?.category || "") === filters.category;
+    const matchesLocation = filters.location === "all" || item.location === filters.location;
     const searchable = `${item.title} ${item.description} ${item.location} ${item.userName}`.toLowerCase();
     const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
 
-    return matchesType && matchesStatus && matchesCategory && matchesQuery;
+    return matchesType && matchesStatus && matchesCategory && matchesLocation && matchesQuery;
   });
 }
 
@@ -183,6 +184,33 @@ export function findTopMatchForUser(items, user) {
   });
 
   return best && best.score >= 55 ? best : null;
+}
+
+export function findAlertsForUser(items, user) {
+  if (!user) {
+    return [];
+  }
+
+  const myOpenItems = items.filter(
+    (item) => item.userId === user.id && (item.status || "open") === "open"
+  );
+  const alerts = new Map();
+
+  myOpenItems.forEach((myItem) => {
+    findMatchSuggestions(items, myItem).forEach((suggestion) => {
+      if (suggestion.score < 55) {
+        return;
+      }
+
+      const existing = alerts.get(suggestion.item.id);
+
+      if (!existing || suggestion.score > existing.score) {
+        alerts.set(suggestion.item.id, { ...suggestion, sourceItem: myItem });
+      }
+    });
+  });
+
+  return [...alerts.values()].sort((a, b) => b.score - a.score);
 }
 
 export function getMatchConfidence(score) {
@@ -228,6 +256,7 @@ export function calculateMatchScore(baseItem, candidate) {
   const imageScore = imageSimilarityScore(baseItem.imageSignature, candidate.imageSignature);
   const timeScore = timeProximityScore(baseItem.createdAt, candidate.createdAt);
 
+  // image labels matter most, then text and location. numbers are hand-tuned, might revisit after user testing
   return Math.min(
     99,
     Math.round(

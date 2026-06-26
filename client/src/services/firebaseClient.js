@@ -278,8 +278,6 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     imagePath,
     imageSignature: report.imageSignature || null,
     imageLabels: cachedLabels,
-    imageAnalysis: null,
-    imageAnalysisStatus: cachedLabels.length ? "cached" : "pending",
     matchAttributes: report.matchAttributes || null,
     searchKeywords: report.searchKeywords || [],
     status: "open",
@@ -290,8 +288,9 @@ export async function createItemReport({ currentUser, imageFile, report }) {
   };
 
   const docRef = await addDoc(collection(db, "items"), item);
-  let imageAnalysisUpdate = {};
+  let labelUpdate = {};
 
+  // if we didn't reuse cached labels, ask the function to analyze the photo and save what it finds
   if (!cachedLabels.length && report.imageDataUrl) {
     const analysis = await analyzeImageLabels({
       imageDataUrl: report.imageDataUrl,
@@ -300,21 +299,14 @@ export async function createItemReport({ currentUser, imageFile, report }) {
       userId: currentUser.id
     });
 
-    imageAnalysisUpdate = {
-      imageLabels: analysis?.labels || [],
-      imageAnalysis: analysis,
-      imageAnalysisStatus: analysis ? "complete" : "failed",
-      imageAnalysisUpdatedAt: serverTimestamp()
-    };
-
-    await updateDoc(docRef, imageAnalysisUpdate);
+    labelUpdate = { imageLabels: analysis?.labels || [] };
+    await updateDoc(docRef, labelUpdate);
   }
 
   return {
     id: docRef.id,
     ...item,
-    ...imageAnalysisUpdate,
-    imageAnalysisUpdatedAt: imageAnalysisUpdate.imageAnalysisUpdatedAt ? new Date().toISOString() : undefined,
+    ...labelUpdate,
     createdAt: new Date().toISOString()
   };
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountPanel } from "./components/AccountPanel.jsx";
+import { AlertsScreen } from "./components/AlertsScreen.jsx";
 import { AppHeader } from "./components/AppHeader.jsx";
 import { AuthCard } from "./components/AuthCard.jsx";
 import { BottomTabs } from "./components/BottomTabs.jsx";
@@ -29,6 +30,7 @@ import {
   buildSearchKeywords,
   calculateMatchScore,
   filterAndSortItems,
+  findAlertsForUser,
   findMatchSuggestions,
   findTopMatchForUser,
   getMatchReasons
@@ -62,6 +64,7 @@ function App() {
   const filteredItems = useMemo(() => filterAndSortItems(items, feedFilters), [feedFilters, items]);
   const matchSuggestions = useMemo(() => findMatchSuggestions(items, selectedItem), [items, selectedItem]);
   const topMatch = useMemo(() => findTopMatchForUser(items, currentUser), [currentUser, items]);
+  const alerts = useMemo(() => findAlertsForUser(items, currentUser), [currentUser, items]);
   const highConfidenceMatches = useMemo(() => {
     if (selectedItem?.type !== "lost") {
       return [];
@@ -255,6 +258,7 @@ function App() {
         }
       });
 
+      // console.log("new report saved", item);
       setItems([item, ...items]);
       setItemForm(emptyItemForm);
       setSelectedItemId(item.id);
@@ -378,7 +382,7 @@ function App() {
         </div>
       ) : (
         <div className="mobile-frame app-frame">
-          {(screen === "feed" || screen === "account") && (
+          {(screen === "feed" || screen === "account" || screen === "alerts") && (
             <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
           )}
 
@@ -394,14 +398,10 @@ function App() {
           <div className="screen" key={screen}>
             {screen === "feed" && (
               <>
-                <section className="hero-card">
-                  <p>Report an item, review possible matches, and use claims to close the loop when an item is recovered.</p>
-                </section>
-
                 {topMatch && (
                   <button className="match-hero" onClick={openMatchScreen} type="button">
                     <span className="match-hero-label">Possible match</span>
-                    <strong>A {topMatch.item.title} may match your report</strong>
+                    <strong>{topMatch.item.title} may match your report</strong>
                     <small>{topMatch.score}% similar to your “{topMatch.sourceItem.title}”</small>
                     <span className="match-hero-cta">Review match →</span>
                   </button>
@@ -471,10 +471,17 @@ function App() {
               />
             )}
 
+            {screen === "alerts" && <AlertsScreen alerts={alerts} onOpen={openItem} />}
+
             {screen === "account" && <AccountPanel currentUser={currentUser} onSignOut={handleSignOut} />}
           </div>
 
-          <BottomTabs active={screen} onReport={() => setReportSheetOpen(true)} onTab={setScreen} />
+          <BottomTabs
+            active={screen}
+            alertCount={alerts.length}
+            onReport={() => setReportSheetOpen(true)}
+            onTab={setScreen}
+          />
 
           {reportSheetOpen && <ReportSheet onChoose={startReport} onClose={() => setReportSheetOpen(false)} />}
         </div>
