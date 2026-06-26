@@ -84,7 +84,9 @@ const CATEGORY_TERMS = {
   keys: ["keys", "key"],
   glasses: ["glasses", "spectacles", "eyeglasses", "sunglasses"],
   umbrella: ["umbrella"],
-  charger: ["charger", "adapter"]
+  charger: ["charger", "adapter"],
+  snacks: ["snack", "snacks", "candy", "sweets", "sweet", "chocolate", "biscuit", "cookie", "chips", "gum", "chewing gum", "mentos", "tic tac"],
+  drink: ["drink", "soda", "soft drink", "juice", "coffee", "tea", "redbull", "coke", "pepsi", "sprite"]
 };
 
 const COLOR_TERMS = {
