@@ -70,7 +70,7 @@ exports.analyzeImage = onCall({ region: "us-central1" }, async (request) => {
     });
 
     const analysis = buildAnalysis(result);
-    logger.info(`Vision returned ${analysis.labels.length} labels.`, analysis.labels);
+    logger.info(`Vision returned ${analysis.labels.length} labels: ${JSON.stringify(analysis.labels)}`);
 
     if (analysis.labels.length) {
       labelCache.set(cacheKey, analysis);
