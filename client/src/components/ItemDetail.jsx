@@ -119,18 +119,8 @@ export function ItemDetail({
               name="message"
               value={claimForm.message}
               onChange={onClaimChange}
-              placeholder="Share details that help verify the item."
+              placeholder={`Share details that help verify the item. Your Telegram ${currentUser.telegramContact || "contact"} will be included.`}
               rows="4"
-              required
-            />
-          </label>
-          <label>
-            Contact
-            <input
-              name="contact"
-              value={claimForm.contact}
-              onChange={onClaimChange}
-              placeholder="Telegram handle, phone, or email"
               required
             />
           </label>

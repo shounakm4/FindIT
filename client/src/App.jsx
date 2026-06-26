@@ -429,9 +429,13 @@ function App() {
         status
       });
 
-      setSelectedClaims(selectedClaims.map((existingClaim) => (existingClaim.id === claim.id ? updatedClaim : existingClaim)));
+      setSelectedClaims(
+        updatedClaim
+          ? selectedClaims.map((existingClaim) => (existingClaim.id === claim.id ? updatedClaim : existingClaim))
+          : selectedClaims.filter((existingClaim) => existingClaim.id !== claim.id)
+      );
       await loadClaimSummary();
-      setMessage(`Claim marked as ${status}.`);
+      setMessage(status === "rejected" ? "Claim rejected and removed." : `Claim marked as ${status}.`);
     } catch (error) {
       setMessage(error.message || "Unable to update claim status.");
     } finally {

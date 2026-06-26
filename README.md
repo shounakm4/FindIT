@@ -98,8 +98,8 @@ How it works:
 
 ### Claims And Resolution Flow
 
-- Users can submit claim/contact requests on reports they do not own.
-- Report owners can view claim contact details.
+- Users register with a Telegram contact so claim requests can include contact details automatically.
+- Report owners can view claimant Telegram contacts, and lost-item owners can see found-item owner contact details on high-confidence matches.
 - Owners can mark reports as resolved.
 - Resolved reports stay visible but no longer accept new claim requests.
 
@@ -143,8 +143,8 @@ Milestone 2 expands the prototype from basic reporting into a usable lost-and-fo
   pages.
 - Search and filtering: users can search by text, filter by report type/status/category, and sort the
   feed.
-- Claim workflow: users can contact report owners through claim requests, and owners can resolve
-  completed reports.
+- Claim workflow: users can send claim requests with their registered Telegram contact, owners can
+  reject or progress requests, and owners can resolve completed reports.
 - AI-assisted matching: the app extracts report attributes, computes local image signatures, requests
   Gemini image labels through Cloud Functions, and combines those signals into match scores.
 - Match review: the UI surfaces possible matches in the feed, detail pages, and a focused match review

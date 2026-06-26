@@ -39,16 +39,28 @@ export function AuthCard({
 
       <form className="stacked-form" onSubmit={onAuthSubmit}>
         {authMode === "register" && (
-          <label>
-            Name
-            <input
-              name="name"
-              value={authForm.name}
-              onChange={onFormChange}
-              placeholder="Your Name"
-              required
-            />
-          </label>
+          <>
+            <label>
+              Name
+              <input
+                name="name"
+                value={authForm.name}
+                onChange={onFormChange}
+                placeholder="Your Name"
+                required
+              />
+            </label>
+            <label>
+              Telegram
+              <input
+                name="telegramContact"
+                value={authForm.telegramContact}
+                onChange={onFormChange}
+                placeholder="@telegramhandle"
+                required
+              />
+            </label>
+          </>
         )}
         <label>
           Email

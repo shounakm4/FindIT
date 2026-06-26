@@ -11,8 +11,10 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
+  getDoc,
   getFirestore,
   limit,
   onSnapshot,
@@ -65,12 +67,27 @@ function ensureFirebase() {
   return { auth, db, functionsClient, storage };
 }
 
-function publicUser(user) {
+function normalizeTelegramContact(contact = "") {
+  const trimmed = contact.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
+}
+
+async function publicUser(user) {
+  const { db } = ensureFirebase();
+  const profileSnapshot = await getDoc(doc(db, "users", user.uid));
+  const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
+
   return {
     id: user.uid,
-    name: user.displayName || user.email.split("@")[0],
+    name: profile.name || user.displayName || user.email.split("@")[0],
     email: user.email,
-    emailVerified: user.emailVerified
+    emailVerified: user.emailVerified,
+    telegramContact: profile.telegramContact || ""
   };
 }
 
@@ -119,7 +136,17 @@ export function subscribeToAuth(callback, onError) {
           return;
         }
 
-        callback(user ? publicUser(user) : null);
+        if (!user) {
+          callback(null);
+          return;
+        }
+
+        publicUser(user)
+          .then(callback)
+          .catch((error) => {
+            onError(error.message || "Unable to load your profile.");
+            callback(null);
+          });
       },
       (error) => onError(mapFirebaseError(error))
     );
@@ -130,9 +157,15 @@ export function subscribeToAuth(callback, onError) {
   }
 }
 
-export async function registerUser({ name, email, password }) {
+export async function registerUser({ name, email, password, telegramContact }) {
   if (!isNusEmail(email)) {
     throw new Error("Please register with an NUS email address.");
+  }
+
+  const normalizedTelegramContact = normalizeTelegramContact(telegramContact);
+
+  if (!normalizedTelegramContact) {
+    throw new Error("Please add your Telegram contact.");
   }
 
   try {
@@ -144,6 +177,7 @@ export async function registerUser({ name, email, password }) {
       name: name.trim(),
       email: credential.user.email,
       emailVerified: false,
+      telegramContact: normalizedTelegramContact,
       createdAt: serverTimestamp()
     });
 
@@ -375,6 +409,7 @@ export async function createItemReport({ currentUser, imageFile, report }) {
     userId: currentUser.id,
     userName: currentUser.name,
     userEmail: currentUser.email,
+    userTelegramContact: currentUser.telegramContact || "",
     createdAt: serverTimestamp()
   };
 
@@ -407,8 +442,12 @@ export async function createClaim({ item, currentUser, claim }) {
     throw new Error("You cannot claim your own report.");
   }
 
-  if (!claim.message.trim() || !claim.contact.trim()) {
-    throw new Error("Please add a message and contact details.");
+  if (!claim.message.trim()) {
+    throw new Error("Please add a message.");
+  }
+
+  if (!currentUser.telegramContact) {
+    throw new Error("Please add your Telegram contact to your account before sending a claim.");
   }
 
   const { db } = ensureFirebase();
@@ -427,7 +466,7 @@ export async function createClaim({ item, currentUser, claim }) {
     claimantName: currentUser.name,
     claimantEmail: currentUser.email,
     message: claim.message.trim(),
-    contact: claim.contact.trim(),
+    contact: currentUser.telegramContact,
     status: "sent"
   };
 
@@ -482,7 +521,15 @@ export async function updateClaimStatus({ claim, currentUser, item, status }) {
     updatedBy: currentUser.id
   };
 
-  await updateDoc(doc(db, "items", item.id, "claims", claim.id), updates);
+  const claimRef = doc(db, "items", item.id, "claims", claim.id);
+
+  if (status === "rejected") {
+    await deleteDoc(claimRef);
+
+    return null;
+  }
+
+  await updateDoc(claimRef, updates);
 
   return {
     ...claim,

@@ -18,6 +18,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/items/$(itemId));
     }
 
+    function user(userId) {
+      return get(/databases/$(database)/documents/users/$(userId));
+    }
+
     function claimAfter(itemId, claimId) {
       return getAfter(/databases/$(database)/documents/items/$(itemId)/claims/$(claimId));
     }
@@ -39,13 +43,14 @@ service cloud.firestore {
           && request.auth.uid != itemOwner(itemId)
           && request.resource.data.itemId == itemId
           && request.resource.data.itemOwnerId == itemOwner(itemId)
-          && request.resource.data.status == "sent";
+          && request.resource.data.status == "sent"
+          && request.resource.data.contact == user(request.auth.uid).data.telegramContact;
         allow update: if signedIn()
           && request.auth.uid == itemOwner(itemId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
-          && request.resource.data.status in ["sent", "reviewing", "accepted", "rejected"]
+          && request.resource.data.status in ["sent", "reviewing", "accepted"]
           && request.resource.data.updatedBy == request.auth.uid;
-        allow delete: if false;
+        allow delete: if signedIn() && request.auth.uid == itemOwner(itemId);
       }
     }
 

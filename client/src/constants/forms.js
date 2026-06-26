@@ -1,7 +1,8 @@
 export const emptyAuthForm = {
   name: "",
   email: "",
-  password: ""
+  password: "",
+  telegramContact: ""
 };
 
 export const itemCategories = ["phone", "laptop", "headphones", "wallet", "card", "bag", "bottle", "keys", "glasses", "charger"];
@@ -35,8 +36,7 @@ export const emptyItemForm = {
 };
 
 export const emptyClaimForm = {
-  message: "",
-  contact: ""
+  message: ""
 };
 
 export const defaultFeedFilters = {

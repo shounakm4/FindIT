@@ -10,6 +10,8 @@ export function MatchSummaryCard({
 }) {
   const { foundItem, matchedLostItem, reasons = [], score = 0 } = match;
   const confidence = getMatchConfidence(score);
+  const foundReporterContact = getFoundReporterContact(foundItem);
+  const showFoundReporterContact = score >= HIGH_CONFIDENCE_MATCH_THRESHOLD && foundReporterContact.value;
 
   return (
     <article
@@ -34,6 +36,11 @@ export function MatchSummaryCard({
           </span>
         )}
         <small>{foundItem.location}</small>
+        {showFoundReporterContact && (
+          <small className="match-contact">
+            {foundReporterContact.label}: {foundReporterContact.value}
+          </small>
+        )}
       </div>
       <div className="match-summary-actions">
         <button className="secondary-button" onClick={() => onReview(match)} type="button">
@@ -52,6 +59,7 @@ export function MatchSummaryCard({
 export function MatchEvidence({ match }) {
   const { foundItem, matchedLostItem, reasons = [], score = 0 } = match;
   const confidence = getMatchConfidence(score);
+  const foundReporterContact = getFoundReporterContact(foundItem);
 
   return (
     <section className="match-evidence">
@@ -82,6 +90,12 @@ export function MatchEvidence({ match }) {
         </div>
       ) : (
         <p className="detail-description">Strong similarity across report details.</p>
+      )}
+
+      {score >= HIGH_CONFIDENCE_MATCH_THRESHOLD && foundReporterContact.value && (
+        <p className="match-contact">
+          {foundReporterContact.label}: {foundReporterContact.value}
+        </p>
       )}
     </section>
   );
@@ -120,4 +134,25 @@ function ReportSnapshot({ item, label }) {
       </div>
     </article>
   );
+}
+
+function getFoundReporterContact(foundItem) {
+  if (foundItem.userTelegramContact) {
+    return {
+      label: "Found reporter Telegram",
+      value: foundItem.userTelegramContact
+    };
+  }
+
+  if (foundItem.userEmail) {
+    return {
+      label: "Found reporter email",
+      value: foundItem.userEmail
+    };
+  }
+
+  return {
+    label: "",
+    value: ""
+  };
 }
