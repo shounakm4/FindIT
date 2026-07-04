@@ -295,7 +295,9 @@ function App() {
       if (user.verificationSent) {
         setAuthMode("login");
         setAuthForm(emptyAuthForm);
-        setMessage(`Verification email sent to ${user.email}. Please verify your NUS email before logging in.`);
+        setMessage(
+          `Verification email sent to ${user.email}. Please check your inbox and junk mail, verify your NUS email, then return here and log in manually.`
+        );
         return;
       }
 
@@ -324,7 +326,9 @@ function App() {
         return;
       }
 
-      setMessage(`Verification email sent to ${result.email}. Check your inbox before logging in.`);
+      setMessage(
+        `Verification email sent to ${result.email}. Please check your inbox and junk mail, verify your NUS email, then return here and log in manually.`
+      );
     } catch (error) {
       setMessage(error.message || "Unable to resend verification email.");
     } finally {
