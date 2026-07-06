@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountPanel } from "./components/AccountPanel.jsx";
 import { AlertsScreen } from "./components/AlertsScreen.jsx";
 import { AppHeader } from "./components/AppHeader.jsx";
@@ -71,6 +71,7 @@ function App() {
   const [activeMatchReview, setActiveMatchReview] = useState(null);
   const [claimAlerts, setClaimAlerts] = useState([]);
   const [dismissedMatchKeys, setDismissedMatchKeys] = useState(readDismissedMatchKeys);
+  const isRegisteringRef = useRef(false);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedItemId) || null,
@@ -176,6 +177,9 @@ function App() {
       (errorMessage) => {
         setMessage(errorMessage);
         setAuthReady(true);
+      },
+      {
+        shouldIgnoreUnverifiedUser: () => isRegisteringRef.current
       }
     );
 
@@ -281,11 +285,13 @@ function App() {
   async function handleAuthSubmit(event) {
     event.preventDefault();
     setMessage("");
+    const isRegistering = authMode === "register";
 
     try {
       setIsAuthSaving(true);
+      isRegisteringRef.current = isRegistering;
       const user =
-        authMode === "register"
+        isRegistering
           ? await registerUser(authForm)
           : await loginUser({
               email: authForm.email,
@@ -307,6 +313,7 @@ function App() {
     } catch (error) {
       setMessage(error.message || "Unable to continue.");
     } finally {
+      isRegisteringRef.current = false;
       setIsAuthSaving(false);
     }
   }

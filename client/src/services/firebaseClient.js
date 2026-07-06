@@ -143,13 +143,18 @@ function normalizeFirestoreDate(value) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
 }
 
-export function subscribeToAuth(callback, onError) {
+export function subscribeToAuth(callback, onError, options = {}) {
   try {
     const { auth } = ensureFirebase();
     return onAuthStateChanged(
       auth,
       (user) => {
         if (user && !user.emailVerified) {
+          if (options.shouldIgnoreUnverifiedUser?.(user)) {
+            callback(null);
+            return;
+          }
+
           onError("Please verify your NUS email before using FindIT.");
           signOut(auth);
           callback(null);
@@ -193,7 +198,6 @@ export async function registerUser({ name, email, password, telegramContact }) {
     const { auth, db } = ensureFirebase();
     const credential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     await updateProfile(credential.user, { displayName: name.trim() });
-    await sendEmailVerification(credential.user);
     await setDoc(doc(db, "users", credential.user.uid), {
       name: name.trim(),
       email: credential.user.email,
@@ -201,6 +205,7 @@ export async function registerUser({ name, email, password, telegramContact }) {
       telegramContact: normalizedTelegramContact,
       createdAt: serverTimestamp()
     });
+    await sendEmailVerification(credential.user);
 
     await signOut(auth);
 
@@ -465,11 +470,11 @@ export async function createClaim({ item, currentUser, claim }) {
     throw new Error("Please add a message.");
   }
 
-  if (!currentUser.telegramContact) {
-    throw new Error("Please add your Telegram contact to your account before sending a claim.");
-  }
-
   const { db } = ensureFirebase();
+  const userProfile = await getDoc(doc(db, "users", currentUser.id));
+  const registeredTelegramContact = normalizeTelegramContact(
+    userProfile.data()?.telegramContact || currentUser.telegramContact || ""
+  );
   const claimsRef = collection(db, "items", item.id, "claims");
   const existingClaimsQuery = query(claimsRef, where("claimantId", "==", currentUser.id), limit(1));
   const existingClaims = await getDocs(existingClaimsQuery);
@@ -485,7 +490,7 @@ export async function createClaim({ item, currentUser, claim }) {
     claimantName: currentUser.name,
     claimantEmail: currentUser.email,
     message: claim.message.trim(),
-    contact: currentUser.telegramContact,
+    contact: registeredTelegramContact,
     status: "sent"
   };
 
