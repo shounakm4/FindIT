@@ -18,7 +18,7 @@
     "source": "functions",
     "runtime": "nodejs20",
     "predeploy": [
-      "npm --prefix run sync:matching"
+      "npm --prefix functions run sync:matching"
     ]
   },
   "firestore": {
