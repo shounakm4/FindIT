@@ -7,10 +7,13 @@
   },
   "main": "index.js",
   "scripts": {
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "sync:matching": "node scripts/sync-matching.mjs"
   },
   "dependencies": {
     "@google-cloud/vision": "^5.3.7",
-    "firebase-functions": "^6.4.0"
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^6.4.0",
+    "nodemailer": "^9.0.3"
   }
 }
