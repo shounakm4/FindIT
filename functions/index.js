@@ -97,7 +97,7 @@ exports.analyzeImage = onCall({ region: "us-central1" }, async (request) => {
 });
 
 exports.emailNewClaim = onDocumentCreated(
-  { document: "alerts/{alertId}", region: "us-central1", secrets: [GMAIL_APP_PASSWORD] },
+  { document: "alerts/{alertId}", region: "asia-southeast1", secrets: [GMAIL_APP_PASSWORD] },
   async (event) => {
     const alert = event.data?.data();
 
@@ -115,7 +115,7 @@ exports.emailNewClaim = onDocumentCreated(
 );
 
 exports.emailClaimStatusChange = onDocumentUpdated(
-  { document: "items/{itemId}/claims/{claimId}", region: "us-central1", secrets: [GMAIL_APP_PASSWORD] },
+  { document: "items/{itemId}/claims/{claimId}", region: "asia-southeast1", secrets: [GMAIL_APP_PASSWORD] },
   async (event) => {
     const before = event.data?.before.data();
     const claim = event.data?.after.data();
@@ -137,7 +137,7 @@ exports.emailClaimStatusChange = onDocumentUpdated(
 );
 
 exports.emailClaimRejection = onDocumentDeleted(
-  { document: "items/{itemId}/claims/{claimId}", region: "us-central1", secrets: [GMAIL_APP_PASSWORD] },
+  { document: "items/{itemId}/claims/{claimId}", region: "asia-southeast1", secrets: [GMAIL_APP_PASSWORD] },
   async (event) => {
     const claim = event.data?.data();
 
@@ -158,7 +158,7 @@ exports.emailClaimRejection = onDocumentDeleted(
 );
 
 exports.emailHighConfidenceMatch = onDocumentCreated(
-  { document: "items/{itemId}", region: "us-central1", secrets: [GMAIL_APP_PASSWORD] },
+  { document: "items/{itemId}", region: "asia-southeast1", secrets: [GMAIL_APP_PASSWORD] },
   async (event) => {
     const createdItem = event.data?.data();
 
