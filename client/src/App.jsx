@@ -480,6 +480,11 @@ function App() {
 
     try {
       setIsSaving(true);
+      const reportLocation =
+        itemForm.type === "lost" && itemForm.location === "Other"
+          ? itemForm.otherLocation.trim()
+          : itemForm.location;
+      const report = { ...itemForm, location: reportLocation };
       const itemSignatureKey = imageSignatureKey(itemForm.imageSignature);
       const matchingImageLabels = items.find(
         (item) =>
@@ -493,9 +498,9 @@ function App() {
         currentUser,
         imageFile: itemForm.imageFile,
         report: {
-          ...itemForm,
-          searchKeywords: buildSearchKeywords(itemForm),
-          matchAttributes: buildMatchAttributes(itemForm),
+          ...report,
+          searchKeywords: buildSearchKeywords(report),
+          matchAttributes: buildMatchAttributes(report),
           imageLabels: matchingImageLabels || []
         }
       });

@@ -4,8 +4,10 @@ import { nusLocations } from "../constants/forms.js";
 export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubmit }) {
   const [step, setStep] = useState(1);
   const isLost = itemForm.type === "lost";
+  const usesOtherLocation = isLost && itemForm.location === "Other";
+  const reportLocation = usesOtherLocation ? itemForm.otherLocation.trim() : itemForm.location;
   const reportLabel = isLost ? "lost item" : "found item";
-  const detailsComplete = itemForm.title.trim() && itemForm.location && itemForm.description.trim();
+  const detailsComplete = itemForm.title.trim() && reportLocation && itemForm.description.trim();
   const photoComplete = isLost || itemForm.imageDataUrl;
   const reportSteps = ["Details", isLost ? "Photo (optional)" : "Photo", "Review"];
 
@@ -76,6 +78,19 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
               </select>
             </label>
 
+            {usesOtherLocation && (
+              <label>
+                Specify location
+                <input
+                  name="otherLocation"
+                  value={itemForm.otherLocation}
+                  onChange={onChange}
+                  placeholder="Enter the last seen location"
+                  required
+                />
+              </label>
+            )}
+
             <label>
               Description
               <textarea
@@ -112,7 +127,6 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
               ) : (
                 <span>
                   <strong>Tap to add a photo</strong>
-                  <small>PNG, JPG or WebP · {isLost ? "optional" : "required"}</small>
                 </span>
               )}
             </label>
@@ -144,7 +158,7 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
               <div>
                 <span className={`type-chip ${itemForm.type}`}>{itemForm.type}</span>
                 <h3>{itemForm.title}</h3>
-                <strong>{itemForm.location}</strong>
+                <strong>{reportLocation}</strong>
                 <p>{itemForm.description}</p>
               </div>
             </div>

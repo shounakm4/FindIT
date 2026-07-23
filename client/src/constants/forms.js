@@ -7,7 +7,7 @@ export const emptyAuthForm = {
 
 export const itemCategories = ["phone", "laptop", "headphones", "wallet", "card", "bag", "bottle", "keys", "glasses", "charger"];
 
-// TODO: add the rest of the NUS locations (RCs and Halls). Include free-text input for "Other".
+// TODO: add the rest of the NUS locations (RCs and Halls).
 export const nusLocations = [
   "COM1",
   "COM2",
@@ -29,6 +29,7 @@ export const emptyItemForm = {
   type: "lost",
   title: "",
   location: "",
+  otherLocation: "",
   description: "",
   imageDataUrl: "",
   imageFile: null,
