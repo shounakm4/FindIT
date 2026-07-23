@@ -3,16 +3,19 @@ export function ReportSheet({ onChoose, onClose }) {
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(event) => event.stopPropagation()}>
         <span className="sheet-grip" />
-        <h2>What would you like to report?</h2>
-        <p>Start a report for something you lost, or help return something you found.</p>
+        <p className="panel-label">New report</p>
+        <h2>What happened?</h2>
+        <p>Choose one to start. You can add the details in the next step.</p>
 
         <button className="sheet-option lost" onClick={() => onChoose("lost")} type="button">
-          <strong>I lost something</strong>
-          <small>Create a lost report · AI matching</small>
+          <span className="sheet-option-label">Lost</span>
+          <strong>I lost an item</strong>
+          <small>Share where you last saw it so others can help.</small>
         </button>
         <button className="sheet-option found" onClick={() => onChoose("found")} type="button">
-          <strong>I found something</strong>
-          <small>Report a found item · notify the owner</small>
+          <span className="sheet-option-label">Found</span>
+          <strong>I found an item</strong>
+          <small>Help the owner recognise and collect it safely.</small>
         </button>
       </div>
     </div>

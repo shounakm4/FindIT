@@ -1,14 +1,28 @@
 import { nusLocations } from "../constants/forms.js";
 
 export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubmit }) {
+  const isLost = itemForm.type === "lost";
+  const reportLabel = isLost ? "lost item" : "found item";
+
   return (
     <section className="glass-panel report-panel" id="report">
       <div className="panel-heading">
-        <p className="panel-label">Report</p>
-        <h2>Report an Item</h2>
+        <p className="panel-label">New report</p>
+        <h2>Report a {reportLabel}</h2>
+        <p className="report-intro">
+          {isLost
+            ? "Give enough detail for someone to recognise what you are looking for."
+            : "Add the details an owner would need to identify their item."}
+        </p>
       </div>
 
       <form className="report-form" onSubmit={onSubmit}>
+        <div className="report-steps" aria-label="Report steps">
+          <span className="active">1. Details</span>
+          <span>2. Photo</span>
+          <span>3. Publish</span>
+        </div>
+
         <div className="type-toggle">
           <label className={itemForm.type === "lost" ? "selected" : ""}>
             <input
@@ -34,11 +48,17 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
 
         <div className="form-row">
           <label>
-            Item name
-            <input name="title" value={itemForm.title} onChange={onChange} placeholder="AirPods Pro" required />
+            What is the item?
+            <input
+              name="title"
+              value={itemForm.title}
+              onChange={onChange}
+              placeholder={isLost ? "e.g. Black AirPods case" : "e.g. Blue water bottle"}
+              required
+            />
           </label>
           <label>
-            Location
+            {isLost ? "Last seen at" : "Found at"}
             <select name="location" value={itemForm.location} onChange={onChange} required>
               <option value="" disabled>
                 Select a location
@@ -51,12 +71,16 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
         </div>
 
         <label>
-          Description
+          Details that help identify it
           <textarea
             name="description"
             value={itemForm.description}
             onChange={onChange}
-            placeholder="Add color, brand, unique marks, last seen time, or where the item is kept."
+            placeholder={
+              isLost
+                ? "Colour, brand, unique marks, and when you last saw it."
+                : "Colour, brand, unique marks, and where you are keeping it."
+            }
             rows="5"
             required
           />
@@ -67,12 +91,15 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
           {itemForm.imageDataUrl ? (
             <img src={itemForm.imageDataUrl} alt="Preview of uploaded item" />
           ) : (
-            <span>Upload item photo</span>
+            <span>
+              <strong>Add a clear photo</strong>
+              <small>Required · helps people verify the item</small>
+            </span>
           )}
         </label>
 
         <button className="primary-button" disabled={isSaving} type="submit">
-          {isSaving ? "Saving..." : "Save report"}
+          {isSaving ? "Publishing..." : `Publish ${reportLabel} report`}
         </button>
       </form>
     </section>
