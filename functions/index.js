@@ -4,7 +4,8 @@ const { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } = require("fir
 const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const vision = require("@google-cloud/vision");
-const admin = require("firebase-admin");
+const { getApps, initializeApp } = require("firebase-admin/app");
+const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const nodemailer = require("nodemailer");
 
 const client = new vision.ImageAnnotatorClient();
@@ -12,8 +13,8 @@ const labelCache = new Map();
 const rateLimitWindows = new Map();
 const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 
-if (!admin.apps.length) {
-  admin.initializeApp();
+if (!getApps().length) {
+  initializeApp();
 }
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -259,7 +260,7 @@ function parseImageData({ base64Image, imageDataUrl }) {
 }
 
 async function getItem(itemId) {
-  const snapshot = await admin.firestore().collection("items").doc(itemId).get();
+  const snapshot = await getFirestore().collection("items").doc(itemId).get();
   return snapshot.exists ? snapshot.data() : null;
 }
 
@@ -269,7 +270,7 @@ async function sendNotificationEmail({ eventId, recipientId, subject, text }) {
     return;
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   const deliveryRef = db.collection("emailNotifications").doc(eventId);
   const reserved = await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(deliveryRef);
@@ -282,7 +283,7 @@ async function sendNotificationEmail({ eventId, recipientId, subject, text }) {
       recipientId,
       subject,
       status: "sending",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
     return true;
   });
@@ -298,7 +299,7 @@ async function sendNotificationEmail({ eventId, recipientId, subject, text }) {
   if (!isEmailAddress(email)) {
     await deliveryRef.update({
       status: "skipped",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     });
     logger.warn("Skipping notification email for a user without a valid email.", { eventId, recipientId });
     return;
@@ -324,13 +325,13 @@ async function sendNotificationEmail({ eventId, recipientId, subject, text }) {
     await deliveryRef.update({
       status: "sent",
       messageId: result.messageId || null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     });
   } catch (error) {
     await deliveryRef.update({
       status: "failed",
       error: error.message || "Unable to send notification email.",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     });
     logger.error("Unable to send notification email.", { eventId, error });
     throw error;
