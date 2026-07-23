@@ -28,6 +28,12 @@ import {
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
+import {
+  createEncryptionKeys,
+  decryptChatMessage,
+  encryptChatMessage,
+  hasEncryptionKeys
+} from "../utils/chatCrypto.js";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -101,6 +107,13 @@ async function ensureProfile(user) {
 
 async function publicUser(user) {
   const profile = await ensureProfile(user);
+  const { db } = ensureFirebase();
+  const chatKeySnapshot = await getDoc(doc(db, "chatKeys", user.uid));
+
+  if (!chatKeySnapshot.exists()) {
+    const encryptionPublicKey = await createEncryptionKeys(user.uid);
+    await setDoc(doc(db, "chatKeys", user.uid), { encryptionPublicKey });
+  }
 
   return {
     id: user.uid,
@@ -592,6 +605,22 @@ function chatId(itemId, claimId) {
   return `chat_${itemId}_${claimId}`;
 }
 
+function otherParticipantId(claim, currentUser) {
+  return claim.itemOwnerId === currentUser.id ? claim.claimantId : claim.itemOwnerId;
+}
+
+async function getChatPublicKey(userId) {
+  const { db } = ensureFirebase();
+  const profile = await getDoc(doc(db, "chatKeys", userId));
+  const encryptionPublicKey = profile.data()?.encryptionPublicKey;
+
+  if (!encryptionPublicKey) {
+    throw new Error("Secure chat is not ready for the other user yet. Ask them to open FindIT once and try again.");
+  }
+
+  return encryptionPublicKey;
+}
+
 export async function sendChatMessage({ claim, currentUser, item, text }) {
   const trimmedText = text.trim();
 
@@ -603,8 +632,19 @@ export async function sendChatMessage({ claim, currentUser, item, text }) {
     throw new Error("Please enter a message.");
   }
 
+  if (!hasEncryptionKeys(currentUser.id)) {
+    throw new Error("This device does not have your secure chat key. Use the device where you first opened FindIT chat.");
+  }
+
   const { db } = ensureFirebase();
   const conversationId = chatId(item.id, claim.id);
+  const otherPublicKey = await getChatPublicKey(otherParticipantId(claim, currentUser));
+  const encryptedMessage = await encryptChatMessage({
+    currentUserId: currentUser.id,
+    conversationId,
+    otherPublicKey,
+    text: trimmedText
+  });
   const conversationRef = doc(db, "conversations", conversationId);
   const messageRef = doc(collection(conversationRef, "messages"));
   const conversation = await getDoc(conversationRef);
@@ -620,7 +660,7 @@ export async function sendChatMessage({ claim, currentUser, item, text }) {
   }
 
   batch.set(messageRef, {
-    text: trimmedText,
+    ...encryptedMessage,
     senderId: currentUser.id,
     createdAt: serverTimestamp()
   });
@@ -637,15 +677,32 @@ export function subscribeToChatMessages({ claim, currentUser, item, onError, onM
       messagesQuery,
       async (snapshot) => {
         try {
-          const messages = snapshot.docs.map((messageDoc) => {
-            const message = messageDoc.data();
+          const otherPublicKey = await getChatPublicKey(otherParticipantId(claim, currentUser));
+          const messages = await Promise.all(
+            snapshot.docs.map(async (messageDoc) => {
+              const message = messageDoc.data();
+              let text = "Unable to decrypt this message on this device.";
 
-            return {
-              id: messageDoc.id,
-              ...message,
-              createdAt: normalizeFirestoreDate(message.createdAt)
-            };
-          });
+              try {
+                text = await decryptChatMessage({
+                  currentUserId: currentUser.id,
+                  conversationId,
+                  otherPublicKey,
+                  ciphertext: message.ciphertext,
+                  iv: message.iv
+                });
+              } catch {
+                // Keep the rest of the conversation visible when one old message cannot be decrypted.
+              }
+
+              return {
+                id: messageDoc.id,
+                ...message,
+                text,
+                createdAt: normalizeFirestoreDate(message.createdAt)
+              };
+            })
+          );
 
           onMessages(messages);
         } catch (error) {

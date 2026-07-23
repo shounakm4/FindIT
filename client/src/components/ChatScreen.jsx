@@ -11,7 +11,7 @@ export function ChatScreen({ claim, currentUser, isSending, item, messages, onMe
         <p className="chat-item-label">About {item.title}</p>
       </div>
 
-        <p className="chat-security-note">Only the reporter and claimant can access this conversation.</p>
+        <p className="chat-security-note">Messages are encrypted before they are saved to FindIT.</p>
 
       <div className="message-list" aria-live="polite">
         {messages.length === 0 ? (
@@ -42,7 +42,7 @@ export function ChatScreen({ claim, currentUser, isSending, item, messages, onMe
           />
         </label>
         <button className="primary-button" disabled={isSending} type="submit">
-          {isSending ? "Sending..." : "Send message"}
+          {isSending ? "Sending..." : "Send securely"}
         </button>
       </form>
     </section>

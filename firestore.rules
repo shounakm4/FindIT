@@ -38,6 +38,14 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
+    match /chatKeys/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(["encryptionPublicKey"])
+        && request.resource.data.encryptionPublicKey is map;
+      allow delete: if false;
+    }
+
     match /items/{itemId} {
       allow read: if signedIn();
       allow create: if isOwner(request.resource.data.userId);
@@ -118,10 +126,11 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in conversation(conversationId).data.participantIds;
         allow create: if signedIn()
           && request.auth.uid in conversation(conversationId).data.participantIds
-          && request.resource.data.keys().hasOnly(["text", "senderId", "createdAt"])
+          && request.resource.data.keys().hasOnly(["ciphertext", "iv", "senderId", "createdAt"])
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
+          && request.resource.data.ciphertext is string
+          && request.resource.data.ciphertext.size() > 0
+          && request.resource.data.iv is string
           && request.resource.data.createdAt == request.time;
         allow update, delete: if false;
       }
