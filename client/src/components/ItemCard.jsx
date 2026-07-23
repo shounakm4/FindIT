@@ -15,10 +15,10 @@ export function ItemCard({ item, matchScore, onSelect }) {
           <span>{item.location} · {relativeTime(item.createdAt)}</span>
           <span className={`status-pill ${item.status || "open"}`}>{item.status || "open"}</span>
         </div>
-        {typeof matchScore === "number" && matchScore > 0 && (
+        {typeof matchScore === "number" && (
           <div className="match-meter">
             <span style={{ width: `${matchScore}%` }} />
-            <b>{getMatchConfidence(matchScore)} match <em>{matchScore}%</em></b>
+            <b>{getMatchConfidence(matchScore)} match <em>{matchScore}% score</em></b>
           </div>
         )}
       </div>

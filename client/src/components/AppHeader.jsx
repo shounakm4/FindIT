@@ -1,3 +1,5 @@
+import { Icon } from "./Icon.jsx";
+
 function getGreeting() {
   const hour = new Date().getHours();
 
@@ -12,7 +14,7 @@ function getGreeting() {
   return "Good evening";
 }
 
-export function AppHeader({ currentUser, onOpenAccount }) {
+export function AppHeader({ chatCount = 0, currentUser, isChatActive, onOpenAccount, onOpenChat }) {
   const firstName = currentUser.name.split(" ")[0];
 
   return (
@@ -21,9 +23,20 @@ export function AppHeader({ currentUser, onOpenAccount }) {
         <img className="brand-logo" src="/logo.svg" alt="FindIT" />
         <p className="greeting">{getGreeting()}, {firstName}</p>
       </div>
-      <button className="header-profile" onClick={onOpenAccount} type="button">
-        <span>{currentUser.name.charAt(0).toUpperCase()}</span>
-      </button>
+      <div className="header-actions">
+        <button
+          aria-label="Open chats"
+          className={`header-chat ${isChatActive ? "active" : ""}`}
+          onClick={onOpenChat}
+          type="button"
+        >
+          <Icon name="chat" size={21} />
+          {chatCount > 0 && <span className="header-chat-badge">{chatCount}</span>}
+        </button>
+        <button className="header-profile" onClick={onOpenAccount} type="button">
+          <span>{currentUser.name.charAt(0).toUpperCase()}</span>
+        </button>
+      </div>
     </header>
   );
 }

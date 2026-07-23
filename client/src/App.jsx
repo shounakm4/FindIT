@@ -5,6 +5,7 @@ import { AppHeader } from "./components/AppHeader.jsx";
 import { AuthCard } from "./components/AuthCard.jsx";
 import { BottomTabs } from "./components/BottomTabs.jsx";
 import { ChatScreen } from "./components/ChatScreen.jsx";
+import { ChatsScreen } from "./components/ChatsScreen.jsx";
 import { FeedControls } from "./components/FeedControls.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
@@ -20,6 +21,7 @@ import {
   dismissUserAlert,
   fetchClaims,
   fetchItems,
+  fetchUserChats,
   fetchUserClaimSummary,
   loginUser,
   logoutUser,
@@ -73,6 +75,7 @@ function App() {
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [activeMatchReview, setActiveMatchReview] = useState(null);
   const [activeChatClaim, setActiveChatClaim] = useState(null);
+  const [userChats, setUserChats] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatText, setChatText] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
@@ -211,10 +214,12 @@ function App() {
         accepted: 0,
         rejected: 0
       });
+      setUserChats([]);
       return;
     }
 
     loadClaimSummary();
+    loadUserChats();
   }, [items, currentUser]);
 
   useEffect(() => {
@@ -273,6 +278,15 @@ function App() {
       setClaimSummary(summary);
     } catch (error) {
       setMessage(error.message || "Unable to load claim summary.");
+    }
+  }
+
+  async function loadUserChats() {
+    try {
+      const chats = await fetchUserChats({ currentUser, items });
+      setUserChats(chats);
+    } catch (error) {
+      setMessage(error.message || "Unable to load chats.");
     }
   }
 
@@ -468,6 +482,7 @@ function App() {
           : selectedClaims.filter((existingClaim) => existingClaim.id !== claim.id)
       );
       await loadClaimSummary();
+      await loadUserChats();
       setMessage(status === "rejected" ? "Claim rejected and removed." : `Claim marked as ${status}.`);
     } catch (error) {
       setMessage(error.message || "Unable to update claim status.");
@@ -537,7 +552,13 @@ function App() {
     setScreen("detail");
   }
 
-  function openChat(claim) {
+  function openChat(chat) {
+    const claim = chat.claim || chat;
+
+    if (chat.item) {
+      setSelectedItemId(chat.item.id);
+    }
+
     setActiveChatClaim(claim);
     setChatText("");
     setMessage("");
@@ -646,8 +667,14 @@ function App() {
         </div>
       ) : (
         <div className="mobile-frame app-frame">
-          {(screen === "feed" || screen === "account" || screen === "alerts" || screen === "verify") && (
-            <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
+          {(screen === "feed" || screen === "account" || screen === "alerts" || screen === "verify" || screen === "chats") && (
+            <AppHeader
+              chatCount={userChats.length}
+              currentUser={currentUser}
+              isChatActive={screen === "chats"}
+              onOpenAccount={() => setScreen("account")}
+              onOpenChat={() => setScreen("chats")}
+            />
           )}
 
           {(screen === "report" || screen === "detail" || screen === "match" || screen === "chat") && (
@@ -686,14 +713,7 @@ function App() {
                         <ItemCard
                           item={item}
                           key={item.id}
-                          matchScore={
-                            selectedItem &&
-                            selectedItem.type === "lost" &&
-                            selectedItem.userId === currentUser?.id &&
-                            item.id !== selectedItem.id
-                              ? calculateMatchScore(selectedItem, item)
-                              : null
-                          }
+                          matchScore={bestMatchScore(item, userLostItems)}
                           onSelect={() => openItem(item.id)}
                         />
                       ))
@@ -774,6 +794,8 @@ function App() {
                 onReviewMatch={openMatchScreenFromList}
               />
             )}
+
+            {screen === "chats" && <ChatsScreen chats={userChats} onOpenChat={openChat} />}
 
             {screen === "verify" && (
               <VerifyScreen
@@ -862,11 +884,23 @@ function matchKey(lostItemId, foundItemId) {
   return `${lostItemId}:${foundItemId}`;
 }
 
+function bestMatchScore(foundItem, lostItems) {
+  const scores = lostItems
+    .filter((item) => (item.status || "open") === "open")
+    .map((item) => calculateMatchScore(item, foundItem));
+
+  return scores.length ? Math.max(...scores) : null;
+}
+
 function matchOriginScreen(match) {
   return ["account", "alerts", "verify"].includes(match?.origin) ? match.origin : "feed";
 }
 
 function activeBottomTab(screen, activeMatchReview) {
+  if (screen === "chat") {
+    return "chats";
+  }
+
   if ((screen === "match" || screen === "detail") && ["account", "alerts", "verify"].includes(activeMatchReview?.origin)) {
     return activeMatchReview.origin;
   }

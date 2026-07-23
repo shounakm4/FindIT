@@ -417,6 +417,29 @@ export async function fetchUserClaimSummary({ currentUser, items }) {
   };
 }
 
+export async function fetchUserChats({ currentUser, items }) {
+  const claimGroups = await Promise.all(
+    items.map(async (item) => {
+      try {
+        const claims = await fetchClaims({ currentUser, item });
+
+        return claims
+          .filter((claim) => claim.status === "accepted")
+          .map((claim) => ({
+            id: `${item.id}:${claim.id}`,
+            claim,
+            item,
+            otherName: claim.itemOwnerId === currentUser.id ? claim.claimantName : item.userName
+          }));
+      } catch {
+        return [];
+      }
+    })
+  );
+
+  return claimGroups.flat();
+}
+
 export async function createItemReport({ currentUser, imageFile, report }) {
   if (!imageFile) {
     throw new Error("Please upload an item photo before saving the report.");
