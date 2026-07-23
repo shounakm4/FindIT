@@ -34,6 +34,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/conversations/$(conversationId));
     }
 
+    function conversationAfter(conversationId) {
+      return getAfter(/databases/$(database)/documents/conversations/$(conversationId));
+    }
+
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
@@ -125,7 +129,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if signedIn() && request.auth.uid in conversation(conversationId).data.participantIds;
         allow create: if signedIn()
-          && request.auth.uid in conversation(conversationId).data.participantIds
+          && request.auth.uid in conversationAfter(conversationId).data.participantIds
           && request.resource.data.keys().hasOnly(["ciphertext", "iv", "senderId", "createdAt"])
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.ciphertext is string
