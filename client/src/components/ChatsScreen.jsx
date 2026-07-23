@@ -1,24 +1,34 @@
+import { relativeTime } from "../utils/date.js";
+
 export function ChatsScreen({ chats, onOpenChat }) {
   return (
     <section className="glass-panel chats-panel">
       <div className="panel-heading">
         <p className="panel-label">Messages</p>
         <h2>Your Chats</h2>
-        <p className="chats-intro">Private chats open when a claim request is sent.</p>
       </div>
 
       <div className="chat-list">
         {chats.length === 0 ? (
-          <p className="empty-state">No chats yet. Claim requests will appear here.</p>
+          <p className="empty-state">No chats yet.</p>
         ) : (
           chats.map((chat) => (
-            <button className="chat-list-item" key={chat.id} onClick={() => onOpenChat(chat)} type="button">
+            <button
+              className={`chat-list-item ${chat.unread ? "unread" : ""}`}
+              key={chat.id}
+              onClick={() => onOpenChat(chat)}
+              type="button"
+            >
               <span className="chat-avatar">{chat.otherName.charAt(0).toUpperCase()}</span>
-              <span>
-                <strong>{chat.otherName}</strong>
+              <span className="chat-list-copy">
+                <span className="chat-list-title">
+                  <strong>{chat.otherName}</strong>
+                  <small>{relativeTime(chat.lastMessageAt)}</small>
+                </span>
                 <small>About {chat.item.title}</small>
+                <p>{chat.lastMessage || chat.claim.message || "Claim request sent"}</p>
               </span>
-              <b>Open</b>
+              {chat.unread && <span className="chat-unread-dot" aria-label="Unread messages" />}
             </button>
           ))
         )}

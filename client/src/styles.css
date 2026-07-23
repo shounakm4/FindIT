@@ -638,6 +638,39 @@ textarea {
   background: rgba(239, 124, 0, 0.12);
 }
 
+.app-toast {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  width: min(calc(100% - 32px), 488px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px 13px 16px;
+  border-radius: 16px;
+  color: white;
+  background: #15243a;
+  box-shadow: 0 14px 34px rgba(15, 31, 51, 0.24);
+  transform: translateX(-50%);
+  animation: fadeUp 0.24s ease;
+}
+
+.app-toast span {
+  line-height: 1.4;
+}
+
+.app-toast button {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 2px 5px;
+  color: white;
+  background: transparent;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .resolved-note {
   padding: 14px;
   border-radius: 16px;
@@ -1111,11 +1144,6 @@ textarea {
   padding: 18px;
 }
 
-.chats-intro {
-  margin: 7px 0 0;
-  color: var(--muted);
-}
-
 .chat-list {
   display: grid;
   gap: 10px;
@@ -1135,10 +1163,29 @@ textarea {
   background: rgba(255, 255, 255, 0.74);
 }
 
-.chat-list-item > span:not(.chat-avatar) {
+.chat-list-item.unread {
+  border-color: rgba(239, 124, 0, 0.38);
+  background: rgba(255, 247, 237, 0.9);
+}
+
+.chat-list-copy {
   display: grid;
   gap: 3px;
   min-width: 0;
+}
+
+.chat-list-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-list-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-list-item small {
@@ -1146,9 +1193,21 @@ textarea {
   overflow-wrap: anywhere;
 }
 
-.chat-list-item b {
-  color: var(--blue);
-  font-size: 0.8rem;
+.chat-list-copy > p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: #3f5066;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-unread-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--orange);
+  box-shadow: 0 0 0 4px rgba(239, 124, 0, 0.12);
 }
 
 .chat-avatar {
@@ -1166,17 +1225,9 @@ textarea {
   padding: 18px;
 }
 
-.chat-item-label,
-.chat-security-note {
+.chat-item-label {
   margin: 4px 0 0;
   color: var(--muted);
-}
-
-.chat-security-note {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: var(--blue-soft);
-  font-size: 0.84rem;
 }
 
 .message-list {

@@ -13,6 +13,7 @@ import { ItemDetail } from "./components/ItemDetail.jsx";
 import { MatchReviewPanel } from "./components/MatchReview.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
+import { Toast } from "./components/Toast.jsx";
 import { VerifyScreen } from "./components/VerifyScreen.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
@@ -77,6 +78,7 @@ function App() {
   const [activeMatchReview, setActiveMatchReview] = useState(null);
   const [activeChatClaim, setActiveChatClaim] = useState(null);
   const [userChats, setUserChats] = useState([]);
+  const [chatReadTimes, setChatReadTimes] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
   const [chatText, setChatText] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
@@ -173,6 +175,8 @@ function App() {
       .filter((match) => match.score >= HIGH_CONFIDENCE_MATCH_THRESHOLD && !dismissedMatchKeys.includes(match.id))
       .sort((a, b) => b.score - a.score);
   }, [dismissedMatchKeys, items, selectedItem]);
+  const chatListKey = useMemo(() => userChats.map((chat) => chat.id).sort().join("|"), [userChats]);
+  const unreadChatCount = useMemo(() => userChats.filter((chat) => chat.unread).length, [userChats]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -216,12 +220,52 @@ function App() {
         rejected: 0
       });
       setUserChats([]);
+      setChatReadTimes({});
       return;
     }
 
+    setChatReadTimes(readChatReadTimes(currentUser.id));
     loadClaimSummary();
     loadUserChats();
   }, [items, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !chatListKey) {
+      return () => {};
+    }
+
+    const unsubscribes = userChats.map((chat) =>
+      subscribeToChatMessages({
+        claim: chat.claim,
+        currentUser,
+        item: chat.item,
+        onError: () => {},
+        onMessages: (messages) => {
+          const latestMessage = messages[messages.length - 1];
+          const readAt = chatReadTimes[chat.id] || 0;
+          const latestTime = new Date(latestMessage?.createdAt || chat.claim.createdAt || 0).getTime();
+
+          setUserChats((currentChats) =>
+            currentChats.map((currentChat) =>
+              currentChat.id === chat.id
+                ? {
+                    ...currentChat,
+                    lastMessage: latestMessage?.text || chat.claim.message || "Claim request sent",
+                    lastMessageAt: latestMessage?.createdAt || chat.claim.createdAt,
+                    unread:
+                      Boolean(latestMessage) &&
+                      latestMessage.senderId !== currentUser.id &&
+                      latestTime > readAt
+                  }
+                : currentChat
+            )
+          );
+        }
+      })
+    );
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [chatListKey, chatReadTimes, currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -250,9 +294,24 @@ function App() {
       currentUser,
       item: selectedItem,
       onError: setMessage,
-      onMessages: setChatMessages
+      onMessages: (messages) => {
+        setChatMessages(messages);
+
+        if (screen === "chat") {
+          markChatRead(`${selectedItem.id}:${activeChatClaim.id}`);
+        }
+      }
     });
-  }, [activeChatClaim, currentUser, selectedItem]);
+  }, [activeChatClaim, currentUser, screen, selectedItem]);
+
+  useEffect(() => {
+    if (!currentUser || !message) {
+      return () => {};
+    }
+
+    const timeout = window.setTimeout(() => setMessage(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [currentUser, message]);
 
   useEffect(() => {
     writeDismissedMatchKeys(dismissedMatchKeys);
@@ -573,15 +632,36 @@ function App() {
 
   function openChat(chat) {
     const claim = chat.claim || chat;
+    const item = chat.item || selectedItem;
 
     if (chat.item) {
       setSelectedItemId(chat.item.id);
+    }
+
+    if (item) {
+      markChatRead(`${item.id}:${claim.id}`);
     }
 
     setActiveChatClaim(claim);
     setChatText("");
     setMessage("");
     setScreen("chat");
+  }
+
+  function markChatRead(chatId) {
+    if (!currentUser || !chatId) {
+      return;
+    }
+
+    const readAt = Date.now();
+    setChatReadTimes((currentTimes) => {
+      const updatedTimes = { ...currentTimes, [chatId]: readAt };
+      writeChatReadTimes(currentUser.id, updatedTimes);
+      return updatedTimes;
+    });
+    setUserChats((currentChats) =>
+      currentChats.map((chat) => (chat.id === chatId ? { ...chat, unread: false } : chat))
+    );
   }
 
   function openMatchScreen() {
@@ -689,7 +769,7 @@ function App() {
         <div className="mobile-frame app-frame">
           {(screen === "feed" || screen === "account" || screen === "alerts" || screen === "verify" || screen === "chats") && (
             <AppHeader
-              chatCount={userChats.length}
+              chatCount={unreadChatCount}
               currentUser={currentUser}
               isChatActive={screen === "chats"}
               onOpenAccount={() => setScreen("account")}
@@ -744,16 +824,13 @@ function App() {
             )}
 
             {screen === "report" && (
-              <>
-                <ReportForm
-                  isSaving={isSaving}
-                  itemForm={itemForm}
-                  onChange={updateItemForm}
-                  onImageChange={handleImageChange}
-                  onSubmit={handleItemSubmit}
-                />
-                {message && <p className="message">{message}</p>}
-              </>
+              <ReportForm
+                isSaving={isSaving}
+                itemForm={itemForm}
+                onChange={updateItemForm}
+                onImageChange={handleImageChange}
+                onSubmit={handleItemSubmit}
+              />
             )}
 
             {screen === "detail" && (
@@ -767,7 +844,6 @@ function App() {
                 isResolving={isResolving}
                 item={selectedItem}
                 matches={matchSuggestions}
-                message={message}
                 matchContext={
                   activeMatchReview?.foundItem.id === selectedItem?.id ||
                   activeMatchReview?.matchedLostItem.id === selectedItem?.id
@@ -799,7 +875,6 @@ function App() {
                 currentUser={currentUser}
                 isSending={isChatSending}
                 item={selectedItem}
-                message={message}
                 messages={chatMessages}
                 onMessageChange={(event) => setChatText(event.target.value)}
                 onSend={handleChatSubmit}
@@ -840,6 +915,8 @@ function App() {
               />
             )}
           </div>
+
+          <Toast message={message} onClose={() => setMessage("")} />
 
           <BottomTabs
             active={activeBottomTab(screen, activeMatchReview)}
@@ -952,6 +1029,31 @@ function writeDismissedMatchKeys(keys) {
     window.localStorage.setItem("findit.dismissedMatches", JSON.stringify(keys));
   } catch {
     // Ignore storage failures so match review still works in restricted browsers.
+  }
+}
+
+function readChatReadTimes(userId) {
+  if (typeof window === "undefined" || !userId) {
+    return {};
+  }
+
+  try {
+    const storedTimes = JSON.parse(window.localStorage.getItem(`findit.chatReadTimes.${userId}`) || "{}");
+    return storedTimes && typeof storedTimes === "object" && !Array.isArray(storedTimes) ? storedTimes : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeChatReadTimes(userId, times) {
+  if (typeof window === "undefined" || !userId) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(`findit.chatReadTimes.${userId}`, JSON.stringify(times));
+  } catch {
+    // Ignore storage failures so chat still works in restricted browsers.
   }
 }
 

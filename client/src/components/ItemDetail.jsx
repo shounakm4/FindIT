@@ -14,7 +14,6 @@ export function ItemDetail({
   isResolving,
   item,
   matches,
-  message,
   matchContext,
   onClaimChange,
   onClaimSubmit,
@@ -133,8 +132,6 @@ export function ItemDetail({
           </button>
         </form>
       )}
-
-      {message && <p className="message">{message}</p>}
 
       {isOwner && item.type === "lost" && highConfidenceMatches.length > 0 && (
         <section className="detail-section match-action-section">

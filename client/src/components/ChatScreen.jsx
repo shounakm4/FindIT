@@ -1,6 +1,6 @@
 import { formatDate } from "../utils/date.js";
 
-export function ChatScreen({ claim, currentUser, isSending, item, message, messages, onMessageChange, onSend, text }) {
+export function ChatScreen({ claim, currentUser, isSending, item, messages, onMessageChange, onSend, text }) {
   const otherName = claim.itemOwnerId === currentUser.id ? claim.claimantName : item.userName;
 
   return (
@@ -11,11 +11,9 @@ export function ChatScreen({ claim, currentUser, isSending, item, message, messa
         <p className="chat-item-label">About {item.title}</p>
       </div>
 
-      <p className="chat-security-note">Only the claimant and report owner can view this conversation.</p>
-
       <div className="message-list" aria-live="polite">
         {messages.length === 0 ? (
-          <p className="empty-state">Start the conversation to arrange a safe handover.</p>
+          <p className="empty-state">No messages yet.</p>
         ) : (
           messages.map((message) => {
             const isMine = message.senderId === currentUser.id;
@@ -36,7 +34,7 @@ export function ChatScreen({ claim, currentUser, isSending, item, message, messa
           <textarea
             name="message"
             onChange={onMessageChange}
-            placeholder="Arrange a time and public place to meet."
+            placeholder="Type a message"
             rows="3"
             value={text}
           />
@@ -45,7 +43,6 @@ export function ChatScreen({ claim, currentUser, isSending, item, message, messa
           {isSending ? "Sending..." : "Send message"}
         </button>
       </form>
-      {message && <p className="message">{message}</p>}
     </section>
   );
 }
