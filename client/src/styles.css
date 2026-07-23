@@ -752,6 +752,10 @@ textarea {
   padding: 0 14px 16px;
 }
 
+.report-review.text-only div {
+  padding-top: 16px;
+}
+
 .report-review h3,
 .report-review p {
   margin: 0;
@@ -839,6 +843,10 @@ textarea {
 
 .item-card:hover {
   border-color: rgba(239, 124, 0, 0.36);
+}
+
+.item-card.text-only {
+  grid-template-columns: 1fr;
 }
 
 .item-card img {

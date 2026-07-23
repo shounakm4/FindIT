@@ -430,18 +430,22 @@ export async function fetchUserChats({ currentUser, items }) {
 }
 
 export async function createItemReport({ currentUser, imageFile, report }) {
-  if (!imageFile) {
+  if (!imageFile && report.type !== "lost") {
     throw new Error("Please upload an item photo before saving the report.");
   }
 
   const { db, storage } = ensureFirebase();
-  const extension = imageFile.name.split(".").pop() || "jpg";
-  const imagePath = `items/${currentUser.id}/${crypto.randomUUID()}.${extension}`;
-  const imageRef = ref(storage, imagePath);
   const cachedLabels = Array.isArray(report.imageLabels) ? report.imageLabels : [];
+  let imagePath = "";
+  let imageUrl = "";
 
-  await uploadBytes(imageRef, imageFile, { contentType: imageFile.type });
-  const imageUrl = await getDownloadURL(imageRef);
+  if (imageFile) {
+    const extension = imageFile.name.split(".").pop() || "jpg";
+    imagePath = `items/${currentUser.id}/${crypto.randomUUID()}.${extension}`;
+    const imageRef = ref(storage, imagePath);
+    await uploadBytes(imageRef, imageFile, { contentType: imageFile.type });
+    imageUrl = await getDownloadURL(imageRef);
+  }
 
   const item = {
     type: report.type,

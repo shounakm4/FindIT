@@ -3,7 +3,7 @@ import { getMatchConfidence } from "../utils/matching.js";
 
 export function ItemCard({ item, matchScore, onSelect }) {
   return (
-    <button className="item-card" onClick={onSelect} type="button">
+    <button className={`item-card ${item.imageUrl ? "" : "text-only"}`} onClick={onSelect} type="button">
       {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
       <div>
         <div className="item-card-header">

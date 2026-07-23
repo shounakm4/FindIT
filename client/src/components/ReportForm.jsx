@@ -6,6 +6,8 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
   const isLost = itemForm.type === "lost";
   const reportLabel = isLost ? "lost item" : "found item";
   const detailsComplete = itemForm.title.trim() && itemForm.location && itemForm.description.trim();
+  const photoComplete = isLost || itemForm.imageDataUrl;
+  const reportSteps = ["Details", isLost ? "Photo (optional)" : "Photo", "Review"];
 
   return (
     <section className="glass-panel report-panel" id="report">
@@ -14,7 +16,7 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
         <h2>Report a {reportLabel}</h2>
         <p className="report-intro">
           {step === 1 && "Enter the item details and location."}
-          {step === 2 && "Upload a clear photo of the item."}
+          {step === 2 && (isLost ? "Photo upload is optional for lost item reports." : "Upload a clear photo of the item.")}
           {step === 3 && "Review the report details before publishing."}
         </p>
       </div>
@@ -23,7 +25,7 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
         <div className="report-steps" aria-label="Report progress">
           {[1, 2, 3].map((stepNumber) => (
             <span className={step === stepNumber ? "active" : step > stepNumber ? "complete" : ""} key={stepNumber}>
-              {stepNumber}. {["Details", "Photo", "Review"][stepNumber - 1]}
+              {stepNumber}. {reportSteps[stepNumber - 1]}
             </span>
           ))}
         </div>
@@ -110,20 +112,22 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
               ) : (
                 <span>
                   <strong>Tap to add a photo</strong>
-                  <small>PNG, JPG or WebP · required</small>
+                  <small>PNG, JPG or WebP · {isLost ? "optional" : "required"}</small>
                 </span>
               )}
             </label>
 
             <p className="report-tip">
-              Use a clear photo without personal documents, faces, or answers to security questions.
+              {isLost
+                ? "A detailed description can be used when no photo is available."
+                : "Use a clear photo without personal documents, faces, or answers to security questions."}
             </p>
 
             <div className="report-step-actions">
               <button className="secondary-button" onClick={() => setStep(1)} type="button">Back</button>
               <button
                 className="primary-button"
-                disabled={!itemForm.imageDataUrl}
+                disabled={!photoComplete}
                 onClick={() => setStep(3)}
                 type="button"
               >
@@ -135,7 +139,7 @@ export function ReportForm({ itemForm, isSaving, onChange, onImageChange, onSubm
 
         {step === 3 && (
           <div className="report-step">
-            <div className="report-review">
+            <div className={`report-review ${itemForm.imageDataUrl ? "" : "text-only"}`}>
               {itemForm.imageDataUrl && <img src={itemForm.imageDataUrl} alt="" />}
               <div>
                 <span className={`type-chip ${itemForm.type}`}>{itemForm.type}</span>
