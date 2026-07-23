@@ -103,7 +103,8 @@ service cloud.firestore {
 	    }
 
     match /conversations/{conversationId} {
-      allow read: if signedIn() && request.auth.uid in resource.data.participantIds;
+      allow get: if signedIn();
+      allow list: if signedIn() && request.auth.uid in resource.data.participantIds;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(["itemId", "claimId", "participantIds", "createdAt"])
         && request.resource.data.createdAt == request.time
