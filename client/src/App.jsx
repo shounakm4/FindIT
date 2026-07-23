@@ -4,6 +4,7 @@ import { AlertsScreen } from "./components/AlertsScreen.jsx";
 import { AppHeader } from "./components/AppHeader.jsx";
 import { AuthCard } from "./components/AuthCard.jsx";
 import { BottomTabs } from "./components/BottomTabs.jsx";
+import { ChatScreen } from "./components/ChatScreen.jsx";
 import { FeedControls } from "./components/FeedControls.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
@@ -25,6 +26,8 @@ import {
   registerUser,
   resendVerificationEmail,
   resolveItem,
+  sendChatMessage,
+  subscribeToChatMessages,
   subscribeToUserAlerts,
   subscribeToAuth,
   updateClaimStatus
@@ -69,6 +72,10 @@ function App() {
   const [screen, setScreen] = useState("feed");
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [activeMatchReview, setActiveMatchReview] = useState(null);
+  const [activeChatClaim, setActiveChatClaim] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatText, setChatText] = useState("");
+  const [isChatSending, setIsChatSending] = useState(false);
   const [claimAlerts, setClaimAlerts] = useState([]);
   const [dismissedMatchKeys, setDismissedMatchKeys] = useState(readDismissedMatchKeys);
   const isRegisteringRef = useRef(false);
@@ -222,6 +229,21 @@ function App() {
       onError: setMessage
     });
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!activeChatClaim || !selectedItem || !currentUser) {
+      setChatMessages([]);
+      return () => {};
+    }
+
+    return subscribeToChatMessages({
+      claim: activeChatClaim,
+      currentUser,
+      item: selectedItem,
+      onError: setMessage,
+      onMessages: setChatMessages
+    });
+  }, [activeChatClaim, currentUser, selectedItem]);
 
   useEffect(() => {
     writeDismissedMatchKeys(dismissedMatchKeys);
@@ -471,6 +493,29 @@ function App() {
     }
   }
 
+  async function handleChatSubmit(event) {
+    event.preventDefault();
+
+    if (!activeChatClaim || !selectedItem || !currentUser) {
+      return;
+    }
+
+    try {
+      setIsChatSending(true);
+      await sendChatMessage({
+        claim: activeChatClaim,
+        currentUser,
+        item: selectedItem,
+        text: chatText
+      });
+      setChatText("");
+    } catch (error) {
+      setMessage(error.message || "Unable to send secure message.");
+    } finally {
+      setIsChatSending(false);
+    }
+  }
+
   async function handleSignOut() {
     try {
       await logoutUser();
@@ -478,6 +523,7 @@ function App() {
       setItems([]);
       setClaimAlerts([]);
       setActiveMatchReview(null);
+      setActiveChatClaim(null);
       setSelectedItemId("");
       setMessage("");
     } catch (error) {
@@ -489,6 +535,13 @@ function App() {
     setActiveMatchReview(matchContext);
     setSelectedItemId(itemId);
     setScreen("detail");
+  }
+
+  function openChat(claim) {
+    setActiveChatClaim(claim);
+    setChatText("");
+    setMessage("");
+    setScreen("chat");
   }
 
   function openMatchScreen() {
@@ -540,6 +593,11 @@ function App() {
   }
 
   function goBack() {
+    if (screen === "chat") {
+      setScreen("detail");
+      return;
+    }
+
     if (screen === "detail" && activeMatchReview) {
       setScreen("match");
       return;
@@ -592,7 +650,7 @@ function App() {
             <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
           )}
 
-          {(screen === "report" || screen === "detail" || screen === "match") && (
+          {(screen === "report" || screen === "detail" || screen === "match" || screen === "chat") && (
             <header className="screen-header">
               <button className="back-button" onClick={goBack} type="button">
                 <Icon name="back" size={20} />
@@ -680,6 +738,7 @@ function App() {
                 onClaimSubmit={handleClaimSubmit}
                 onClaimStatusChange={handleClaimStatusChange}
                 onDismissMatch={dismissMatch}
+                onOpenChat={openChat}
                 onResolve={handleResolveItem}
                 onSelectMatch={(match) => openItem(match.foundItem.id, match)}
               />
@@ -691,6 +750,19 @@ function App() {
                 onClaim={(match) => openItem(match.foundItem.id, match)}
                 onDismiss={dismissAndReturn}
                 onViewDetails={openItem}
+              />
+            )}
+
+            {screen === "chat" && selectedItem && activeChatClaim && (
+              <ChatScreen
+                claim={activeChatClaim}
+                currentUser={currentUser}
+                isSending={isChatSending}
+                item={selectedItem}
+                messages={chatMessages}
+                onMessageChange={(event) => setChatText(event.target.value)}
+                onSend={handleChatSubmit}
+                text={chatText}
               />
             )}
 

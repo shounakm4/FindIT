@@ -26,6 +26,14 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/items/$(itemId)/claims/$(claimId));
     }
 
+    function claim(itemId, claimId) {
+      return get(/databases/$(database)/documents/items/$(itemId)/claims/$(claimId));
+    }
+
+    function conversation(conversationId) {
+      return get(/databases/$(database)/documents/conversations/$(conversationId));
+    }
+
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
@@ -93,5 +101,31 @@ service cloud.firestore {
 	        && request.resource.data.dismissedAt == request.time;
 	      allow delete: if false;
 	    }
+
+    match /conversations/{conversationId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(["itemId", "claimId", "participantIds", "createdAt"])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.participantIds.size() == 2
+        && request.resource.data.participantIds[0] == claim(request.resource.data.itemId, request.resource.data.claimId).data.itemOwnerId
+        && request.resource.data.participantIds[1] == claim(request.resource.data.itemId, request.resource.data.claimId).data.claimantId
+        && request.auth.uid in request.resource.data.participantIds
+        && claim(request.resource.data.itemId, request.resource.data.claimId).data.status == "accepted";
+      allow update, delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if signedIn() && request.auth.uid in conversation(conversationId).data.participantIds;
+        allow create: if signedIn()
+          && request.auth.uid in conversation(conversationId).data.participantIds
+          && request.resource.data.keys().hasOnly(["text", "senderId", "createdAt"])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+
+    }
   }
 }

@@ -587,3 +587,76 @@ export async function resolveItem({ item, currentUser }) {
     updatedAt: new Date().toISOString()
   };
 }
+
+function chatId(itemId, claimId) {
+  return `chat_${itemId}_${claimId}`;
+}
+
+export async function sendChatMessage({ claim, currentUser, item, text }) {
+  const trimmedText = text.trim();
+
+  if (claim.status !== "accepted") {
+    throw new Error("Secure chat opens after a claim is accepted.");
+  }
+
+  if (!trimmedText) {
+    throw new Error("Please enter a message.");
+  }
+
+  const { db } = ensureFirebase();
+  const conversationId = chatId(item.id, claim.id);
+  const conversationRef = doc(db, "conversations", conversationId);
+  const messageRef = doc(collection(conversationRef, "messages"));
+  const conversation = await getDoc(conversationRef);
+  const batch = writeBatch(db);
+
+  if (!conversation.exists()) {
+    batch.set(conversationRef, {
+      itemId: item.id,
+      claimId: claim.id,
+      participantIds: [claim.itemOwnerId, claim.claimantId],
+      createdAt: serverTimestamp()
+    });
+  }
+
+  batch.set(messageRef, {
+    text: trimmedText,
+    senderId: currentUser.id,
+    createdAt: serverTimestamp()
+  });
+  await batch.commit();
+}
+
+export function subscribeToChatMessages({ claim, currentUser, item, onError, onMessages }) {
+  try {
+    const { db } = ensureFirebase();
+    const conversationId = chatId(item.id, claim.id);
+    const messagesQuery = query(collection(db, "conversations", conversationId, "messages"), orderBy("createdAt", "asc"));
+
+    return onSnapshot(
+      messagesQuery,
+      async (snapshot) => {
+        try {
+          const messages = snapshot.docs.map((messageDoc) => {
+            const message = messageDoc.data();
+
+            return {
+              id: messageDoc.id,
+              ...message,
+              createdAt: normalizeFirestoreDate(message.createdAt)
+            };
+          });
+
+          onMessages(messages);
+        } catch (error) {
+          onError(error.message || "Unable to load secure chat.");
+        }
+      },
+      (error) => onError(error.message || "Unable to load secure chat.")
+    );
+  } catch (error) {
+    onError(error.message || "Unable to load secure chat.");
+    onMessages([]);
+    return () => {};
+  }
+}

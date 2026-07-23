@@ -20,6 +20,7 @@ export function ItemDetail({
   onClaimSubmit,
   onClaimStatusChange,
   onDismissMatch,
+  onOpenChat,
   onResolve,
   onSelectMatch
 }) {
@@ -106,6 +107,11 @@ export function ItemDetail({
             </span>
             .
           </p>
+          {currentUserClaim.status === "accepted" && (
+            <button className="secondary-button" onClick={() => onOpenChat(currentUserClaim)} type="button">
+              Open secure chat
+            </button>
+          )}
         </div>
       ) : (
         <form className="claim-form" onSubmit={onClaimSubmit}>
@@ -234,6 +240,11 @@ export function ItemDetail({
                       </button>
                     ))}
                   </div>
+                )}
+                {claim.status === "accepted" && (
+                  <button className="secondary-button" onClick={() => onOpenChat(claim)} type="button">
+                    Open secure chat
+                  </button>
                 )}
               </article>
             ))

@@ -937,6 +937,69 @@ textarea {
   gap: 12px;
 }
 
+.chat-panel,
+.message-list,
+.chat-form {
+  display: grid;
+  gap: 12px;
+}
+
+.chat-panel {
+  padding: 18px;
+}
+
+.chat-item-label,
+.chat-security-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.chat-security-note {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--blue-soft);
+  font-size: 0.84rem;
+}
+
+.message-list {
+  min-height: 200px;
+  max-height: 48vh;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.chat-message {
+  display: grid;
+  gap: 5px;
+  width: fit-content;
+  max-width: 85%;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+.chat-message.mine {
+  justify-self: end;
+  color: white;
+  background: var(--blue);
+  border-bottom-right-radius: 4px;
+}
+
+.chat-message.theirs {
+  background: var(--blue-soft);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-message p,
+.chat-message small {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-message small {
+  opacity: 0.74;
+  font-size: 0.7rem;
+}
+
 .panel-heading.compact {
   margin-bottom: 6px;
 }
