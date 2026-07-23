@@ -107,11 +107,9 @@ export function ItemDetail({
             </span>
             .
           </p>
-          {currentUserClaim.status === "accepted" && (
-            <button className="secondary-button" onClick={() => onOpenChat(currentUserClaim)} type="button">
-              Open secure chat
-            </button>
-          )}
+          <button className="secondary-button" onClick={() => onOpenChat(currentUserClaim)} type="button">
+            Open chat
+          </button>
         </div>
       ) : (
         <form className="claim-form" onSubmit={onClaimSubmit}>
@@ -241,11 +239,9 @@ export function ItemDetail({
                     ))}
                   </div>
                 )}
-                {claim.status === "accepted" && (
-                  <button className="secondary-button" onClick={() => onOpenChat(claim)} type="button">
-                    Open secure chat
-                  </button>
-                )}
+                <button className="secondary-button" onClick={() => onOpenChat(claim)} type="button">
+                  Open chat
+                </button>
               </article>
             ))
           )}

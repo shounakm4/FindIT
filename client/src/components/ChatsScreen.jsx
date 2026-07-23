@@ -4,12 +4,12 @@ export function ChatsScreen({ chats, onOpenChat }) {
       <div className="panel-heading">
         <p className="panel-label">Messages</p>
         <h2>Your Chats</h2>
-        <p className="chats-intro">Secure chats open after a claim has been accepted.</p>
+        <p className="chats-intro">Private chats open when a claim request is sent.</p>
       </div>
 
       <div className="chat-list">
         {chats.length === 0 ? (
-          <p className="empty-state">No chats yet. Accepted claims will appear here.</p>
+          <p className="empty-state">No chats yet. Claim requests will appear here.</p>
         ) : (
           chats.map((chat) => (
             <button className="chat-list-item" key={chat.id} onClick={() => onOpenChat(chat)} type="button">

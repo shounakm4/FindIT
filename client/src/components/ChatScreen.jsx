@@ -1,17 +1,17 @@
 import { formatDate } from "../utils/date.js";
 
-export function ChatScreen({ claim, currentUser, isSending, item, messages, onMessageChange, onSend, text }) {
+export function ChatScreen({ claim, currentUser, isSending, item, message, messages, onMessageChange, onSend, text }) {
   const otherName = claim.itemOwnerId === currentUser.id ? claim.claimantName : item.userName;
 
   return (
     <section className="glass-panel chat-panel">
       <div className="panel-heading">
-        <p className="panel-label">Secure chat</p>
+        <p className="panel-label">Private chat</p>
         <h2>{otherName}</h2>
         <p className="chat-item-label">About {item.title}</p>
       </div>
 
-        <p className="chat-security-note">Messages are encrypted before they are saved to FindIT.</p>
+      <p className="chat-security-note">Only the claimant and report owner can view this conversation.</p>
 
       <div className="message-list" aria-live="polite">
         {messages.length === 0 ? (
@@ -42,9 +42,10 @@ export function ChatScreen({ claim, currentUser, isSending, item, messages, onMe
           />
         </label>
         <button className="primary-button" disabled={isSending} type="submit">
-          {isSending ? "Sending..." : "Send securely"}
+          {isSending ? "Sending..." : "Send message"}
         </button>
       </form>
+      {message && <p className="message">{message}</p>}
     </section>
   );
 }

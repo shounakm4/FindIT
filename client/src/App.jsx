@@ -230,10 +230,13 @@ function App() {
 
     return subscribeToUserAlerts({
       currentUser,
-      onAlerts: setClaimAlerts,
+      onAlerts: (alerts) => {
+        setClaimAlerts(alerts);
+        loadUserChats();
+      },
       onError: setMessage
     });
-  }, [currentUser]);
+  }, [currentUser, items]);
 
   useEffect(() => {
     if (!activeChatClaim || !selectedItem || !currentUser) {
@@ -454,7 +457,8 @@ function App() {
 
       setSelectedClaims([claim, ...selectedClaims]);
       setClaimForm(emptyClaimForm);
-      setMessage("Claim request sent.");
+      await loadUserChats();
+      openChat({ claim, item: selectedItem });
     } catch (error) {
       setMessage(error.message || "Unable to send claim.");
     } finally {
@@ -525,7 +529,7 @@ function App() {
       });
       setChatText("");
     } catch (error) {
-      setMessage(error.message || "Unable to send secure message.");
+      setMessage(error.message || "Unable to send message.");
     } finally {
       setIsChatSending(false);
     }
@@ -779,6 +783,7 @@ function App() {
                 currentUser={currentUser}
                 isSending={isChatSending}
                 item={selectedItem}
+                message={message}
                 messages={chatMessages}
                 onMessageChange={(event) => setChatText(event.target.value)}
                 onSend={handleChatSubmit}
