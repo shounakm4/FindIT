@@ -25,5 +25,20 @@
   },
   "devDependencies": {
     "firebase-tools": "^15.19.0"
+  },
+  "overrides": {
+    "body-parser": "1.20.6",
+    "minimatch@3.1.5": {
+      "brace-expansion": "1.1.16"
+    },
+    "minimatch@5.1.9": {
+      "brace-expansion": "2.1.2"
+    },
+    "minimatch@6.2.3": {
+      "brace-expansion": "2.1.2"
+    },
+    "minimatch@9.0.9": {
+      "brace-expansion": "2.1.2"
+    }
   }
 }
