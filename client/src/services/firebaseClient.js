@@ -4,6 +4,7 @@ import {
   getAuth,
   onAuthStateChanged,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile
@@ -263,6 +264,22 @@ export async function resendVerificationEmail({ email, password }) {
       email: credential.user.email,
       verificationSent: true
     };
+  } catch (error) {
+    throw new Error(mapFirebaseError(error));
+  }
+}
+
+export async function resetUserPassword(email) {
+  if (!isNusEmail(email)) {
+    throw new Error("Please use your NUS email address.");
+  }
+
+  try {
+    const { auth } = ensureFirebase();
+    const normalizedEmail = email.trim().toLowerCase();
+    await sendPasswordResetEmail(auth, normalizedEmail);
+
+    return normalizedEmail;
   } catch (error) {
     throw new Error(mapFirebaseError(error));
   }

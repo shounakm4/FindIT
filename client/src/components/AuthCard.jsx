@@ -8,9 +8,11 @@ export function AuthCard({
   onAuthModeChange,
   onAuthSubmit,
   onFormChange,
+  onResetPassword,
   onResendVerification
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const canResetPassword = authForm.email.trim();
   const canResendVerification = authForm.email.trim() && authForm.password.trim();
 
   return (
@@ -94,6 +96,16 @@ export function AuthCard({
             </button>
           </span>
         </label>
+        {authMode === "login" && (
+          <button
+            className="reset-password-button"
+            disabled={isSubmitting || !canResetPassword}
+            onClick={onResetPassword}
+            type="button"
+          >
+            Forgot password?
+          </button>
+        )}
         <button className="primary-button" disabled={isSubmitting} type="submit">
           {isSubmitting ? "Please wait..." : authMode === "register" ? "Create account" : "Log in"}
         </button>

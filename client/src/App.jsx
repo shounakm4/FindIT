@@ -26,6 +26,7 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  resetUserPassword,
   resendVerificationEmail,
   resolveItem,
   sendChatMessage,
@@ -382,6 +383,20 @@ function App() {
     }
   }
 
+  async function handleResetPassword() {
+    setMessage("");
+
+    try {
+      setIsAuthSaving(true);
+      const email = await resetUserPassword(authForm.email);
+      setMessage(`Password reset email sent to ${email}. Please check your inbox and junk mail.`);
+    } catch (error) {
+      setMessage(error.message || "Unable to send password reset email.");
+    } finally {
+      setIsAuthSaving(false);
+    }
+  }
+
   async function handleImageChange(event) {
     const file = event.target.files?.[0];
 
@@ -666,6 +681,7 @@ function App() {
             onAuthModeChange={setAuthMode}
             onAuthSubmit={handleAuthSubmit}
             onFormChange={updateAuthForm}
+            onResetPassword={handleResetPassword}
             onResendVerification={handleResendVerification}
           />
         </div>

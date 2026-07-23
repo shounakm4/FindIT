@@ -409,6 +409,22 @@ textarea {
   transform: translateY(-50%);
 }
 
+.reset-password-button {
+  justify-self: end;
+  margin-top: -5px;
+  border: 0;
+  padding: 2px;
+  color: var(--blue);
+  background: transparent;
+  font-weight: 800;
+}
+
+.reset-password-button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .primary-button,
 .secondary-button,
 .segmented-control button {
