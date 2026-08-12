@@ -14,7 +14,6 @@ export function ItemDetail({
   isResolving,
   item,
   matches,
-  message,
   matchContext,
   onClaimChange,
   onClaimSubmit,
@@ -107,11 +106,9 @@ export function ItemDetail({
             </span>
             .
           </p>
-          {currentUserClaim.status === "accepted" && (
-            <button className="secondary-button" onClick={() => onOpenChat(currentUserClaim)} type="button">
-              Open secure chat
-            </button>
-          )}
+          <button className="secondary-button" onClick={() => onOpenChat(currentUserClaim)} type="button">
+            Open chat
+          </button>
         </div>
       ) : (
         <form className="claim-form" onSubmit={onClaimSubmit}>
@@ -135,8 +132,6 @@ export function ItemDetail({
           </button>
         </form>
       )}
-
-      {message && <p className="message">{message}</p>}
 
       {isOwner && item.type === "lost" && highConfidenceMatches.length > 0 && (
         <section className="detail-section match-action-section">
@@ -241,11 +236,9 @@ export function ItemDetail({
                     ))}
                   </div>
                 )}
-                {claim.status === "accepted" && (
-                  <button className="secondary-button" onClick={() => onOpenChat(claim)} type="button">
-                    Open secure chat
-                  </button>
-                )}
+                <button className="secondary-button" onClick={() => onOpenChat(claim)} type="button">
+                  Open chat
+                </button>
               </article>
             ))
           )}

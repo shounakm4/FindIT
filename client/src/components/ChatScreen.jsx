@@ -6,16 +6,14 @@ export function ChatScreen({ claim, currentUser, isSending, item, messages, onMe
   return (
     <section className="glass-panel chat-panel">
       <div className="panel-heading">
-        <p className="panel-label">Secure chat</p>
+        <p className="panel-label">Private chat</p>
         <h2>{otherName}</h2>
         <p className="chat-item-label">About {item.title}</p>
       </div>
 
-        <p className="chat-security-note">Messages are encrypted before they are saved to FindIT.</p>
-
       <div className="message-list" aria-live="polite">
         {messages.length === 0 ? (
-          <p className="empty-state">Start the conversation to arrange a safe handover.</p>
+          <p className="empty-state">No messages yet.</p>
         ) : (
           messages.map((message) => {
             const isMine = message.senderId === currentUser.id;
@@ -36,13 +34,13 @@ export function ChatScreen({ claim, currentUser, isSending, item, messages, onMe
           <textarea
             name="message"
             onChange={onMessageChange}
-            placeholder="Arrange a time and public place to meet."
+            placeholder="Type a message"
             rows="3"
             value={text}
           />
         </label>
         <button className="primary-button" disabled={isSending} type="submit">
-          {isSending ? "Sending..." : "Send securely"}
+          {isSending ? "Sending..." : "Send message"}
         </button>
       </form>
     </section>

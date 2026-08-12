@@ -4,6 +4,7 @@ import {
   getAuth,
   onAuthStateChanged,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile
@@ -28,12 +29,6 @@ import {
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
-import {
-  createEncryptionKeys,
-  decryptChatMessage,
-  encryptChatMessage,
-  hasEncryptionKeys
-} from "../utils/chatCrypto.js";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -54,6 +49,8 @@ let auth;
 let db;
 let functionsClient;
 let storage;
+
+const CHAT_CLAIM_STATUSES = ["sent", "reviewing", "accepted"];
 
 function ensureFirebase() {
   if (!isFirebaseConfigured) {
@@ -107,13 +104,6 @@ async function ensureProfile(user) {
 
 async function publicUser(user) {
   const profile = await ensureProfile(user);
-  const { db } = ensureFirebase();
-  const chatKeySnapshot = await getDoc(doc(db, "chatKeys", user.uid));
-
-  if (!chatKeySnapshot.exists()) {
-    const encryptionPublicKey = await createEncryptionKeys(user.uid);
-    await setDoc(doc(db, "chatKeys", user.uid), { encryptionPublicKey });
-  }
 
   return {
     id: user.uid,
@@ -279,6 +269,22 @@ export async function resendVerificationEmail({ email, password }) {
   }
 }
 
+export async function resetUserPassword(email) {
+  if (!isNusEmail(email)) {
+    throw new Error("Please use your NUS email address.");
+  }
+
+  try {
+    const { auth } = ensureFirebase();
+    const normalizedEmail = email.trim().toLowerCase();
+    await sendPasswordResetEmail(auth, normalizedEmail);
+
+    return normalizedEmail;
+  } catch (error) {
+    throw new Error(mapFirebaseError(error));
+  }
+}
+
 export async function logoutUser() {
   const { auth } = ensureFirebase();
   await signOut(auth);
@@ -417,19 +423,46 @@ export async function fetchUserClaimSummary({ currentUser, items }) {
   };
 }
 
+export async function fetchUserChats({ currentUser, items }) {
+  const claimGroups = await Promise.all(
+    items.map(async (item) => {
+      try {
+        const claims = await fetchClaims({ currentUser, item });
+
+        return claims
+          .filter((claim) => CHAT_CLAIM_STATUSES.includes(claim.status))
+          .map((claim) => ({
+            id: `${item.id}:${claim.id}`,
+            claim,
+            item,
+            otherName: claim.itemOwnerId === currentUser.id ? claim.claimantName : item.userName
+          }));
+      } catch {
+        return [];
+      }
+    })
+  );
+
+  return claimGroups.flat();
+}
+
 export async function createItemReport({ currentUser, imageFile, report }) {
-  if (!imageFile) {
+  if (!imageFile && report.type !== "lost") {
     throw new Error("Please upload an item photo before saving the report.");
   }
 
   const { db, storage } = ensureFirebase();
-  const extension = imageFile.name.split(".").pop() || "jpg";
-  const imagePath = `items/${currentUser.id}/${crypto.randomUUID()}.${extension}`;
-  const imageRef = ref(storage, imagePath);
   const cachedLabels = Array.isArray(report.imageLabels) ? report.imageLabels : [];
+  let imagePath = "";
+  let imageUrl = "";
 
-  await uploadBytes(imageRef, imageFile, { contentType: imageFile.type });
-  const imageUrl = await getDownloadURL(imageRef);
+  if (imageFile) {
+    const extension = imageFile.name.split(".").pop() || "jpg";
+    imagePath = `items/${currentUser.id}/${crypto.randomUUID()}.${extension}`;
+    const imageRef = ref(storage, imagePath);
+    await uploadBytes(imageRef, imageFile, { contentType: imageFile.type });
+    imageUrl = await getDownloadURL(imageRef);
+  }
 
   const item = {
     type: report.type,
@@ -605,53 +638,21 @@ function chatId(itemId, claimId) {
   return `chat_${itemId}_${claimId}`;
 }
 
-function otherParticipantId(claim, currentUser) {
-  return claim.itemOwnerId === currentUser.id ? claim.claimantId : claim.itemOwnerId;
-}
-
-async function getChatPublicKey(userId) {
-  const { db } = ensureFirebase();
-  const profile = await getDoc(doc(db, "chatKeys", userId));
-  const encryptionPublicKey = profile.data()?.encryptionPublicKey;
-
-  if (!encryptionPublicKey) {
-    throw new Error("Secure chat is not ready for the other user yet. Ask them to open FindIT once and try again.");
+async function ensureChatConversation({ claim, currentUser, item }) {
+  if (!CHAT_CLAIM_STATUSES.includes(claim.status)) {
+    throw new Error("Chat is not available for this claim.");
   }
 
-  return encryptionPublicKey;
-}
-
-export async function sendChatMessage({ claim, currentUser, item, text }) {
-  const trimmedText = text.trim();
-
-  if (claim.status !== "accepted") {
-    throw new Error("Secure chat opens after a claim is accepted.");
-  }
-
-  if (!trimmedText) {
-    throw new Error("Please enter a message.");
-  }
-
-  if (!hasEncryptionKeys(currentUser.id)) {
-    throw new Error("This device does not have your secure chat key. Use the device where you first opened FindIT chat.");
+  if (![claim.itemOwnerId, claim.claimantId].includes(currentUser.id)) {
+    throw new Error("Only the claimant and report owner can open this chat.");
   }
 
   const { db } = ensureFirebase();
-  const conversationId = chatId(item.id, claim.id);
-  const otherPublicKey = await getChatPublicKey(otherParticipantId(claim, currentUser));
-  const encryptedMessage = await encryptChatMessage({
-    currentUserId: currentUser.id,
-    conversationId,
-    otherPublicKey,
-    text: trimmedText
-  });
-  const conversationRef = doc(db, "conversations", conversationId);
-  const messageRef = doc(collection(conversationRef, "messages"));
+  const conversationRef = doc(db, "conversations", chatId(item.id, claim.id));
   const conversation = await getDoc(conversationRef);
-  const batch = writeBatch(db);
 
   if (!conversation.exists()) {
-    batch.set(conversationRef, {
+    await setDoc(conversationRef, {
       itemId: item.id,
       claimId: claim.id,
       participantIds: [claim.itemOwnerId, claim.claimantId],
@@ -659,61 +660,68 @@ export async function sendChatMessage({ claim, currentUser, item, text }) {
     });
   }
 
-  batch.set(messageRef, {
-    ...encryptedMessage,
-    senderId: currentUser.id,
-    createdAt: serverTimestamp()
-  });
-  await batch.commit();
+  return conversationRef;
+}
+
+export async function sendChatMessage({ claim, currentUser, item, text }) {
+  const trimmedText = text.trim();
+
+  if (!trimmedText) {
+    throw new Error("Please enter a message.");
+  }
+
+  const { db } = ensureFirebase();
+  const conversationRef = await ensureChatConversation({ claim, currentUser, item });
+  const messageRef = doc(collection(conversationRef, "messages"));
+
+  try {
+    await setDoc(messageRef, {
+      text: trimmedText,
+      senderId: currentUser.id,
+      createdAt: serverTimestamp()
+    });
+  } catch {
+    throw new Error("Unable to save the message. Please refresh and try again.");
+  }
 }
 
 export function subscribeToChatMessages({ claim, currentUser, item, onError, onMessages }) {
-  try {
-    const { db } = ensureFirebase();
-    const conversationId = chatId(item.id, claim.id);
-    const messagesQuery = query(collection(db, "conversations", conversationId, "messages"), orderBy("createdAt", "asc"));
+  let unsubscribe = () => {};
+  let cancelled = false;
 
-    return onSnapshot(
-      messagesQuery,
-      async (snapshot) => {
-        try {
-          const otherPublicKey = await getChatPublicKey(otherParticipantId(claim, currentUser));
-          const messages = await Promise.all(
-            snapshot.docs.map(async (messageDoc) => {
-              const message = messageDoc.data();
-              let text = "Unable to decrypt this message on this device.";
+  ensureChatConversation({ claim, currentUser, item })
+    .then((conversationRef) => {
+      if (cancelled) {
+        return;
+      }
 
-              try {
-                text = await decryptChatMessage({
-                  currentUserId: currentUser.id,
-                  conversationId,
-                  otherPublicKey,
-                  ciphertext: message.ciphertext,
-                  iv: message.iv
-                });
-              } catch {
-                // Keep the rest of the conversation visible when one old message cannot be decrypted.
-              }
+      const messagesQuery = query(collection(conversationRef, "messages"), orderBy("createdAt", "asc"));
+      unsubscribe = onSnapshot(
+        messagesQuery,
+        (snapshot) => {
+          const messages = snapshot.docs.map((messageDoc) => {
+            const message = messageDoc.data();
 
-              return {
-                id: messageDoc.id,
-                ...message,
-                text,
-                createdAt: normalizeFirestoreDate(message.createdAt)
-              };
-            })
-          );
+            return {
+              id: messageDoc.id,
+              ...message,
+              text: message.text || "Older message unavailable.",
+              createdAt: normalizeFirestoreDate(message.createdAt)
+            };
+          });
 
           onMessages(messages);
-        } catch (error) {
-          onError(error.message || "Unable to load secure chat.");
-        }
-      },
-      (error) => onError(error.message || "Unable to load secure chat.")
-    );
-  } catch (error) {
-    onError(error.message || "Unable to load secure chat.");
-    onMessages([]);
-    return () => {};
-  }
+        },
+        (error) => onError(error.message || "Unable to load chat.")
+      );
+    })
+    .catch((error) => {
+      onError(error.message || "Unable to open chat.");
+      onMessages([]);
+    });
+
+  return () => {
+    cancelled = true;
+    unsubscribe();
+  };
 }

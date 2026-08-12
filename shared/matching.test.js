@@ -203,7 +203,7 @@ describe("smarter matching", () => {
     assert.ok(calculateMatchScore(lostPowerbank, foundWallet) < 65);
   });
 
-  it("does not mark text-only matches as high confidence when image labels are missing", () => {
+  it("keeps matching text-only reports useful without marking them as high confidence", () => {
     const lostWallet = report({
       id: "lost-wallet",
       type: "lost",
@@ -219,7 +219,10 @@ describe("smarter matching", () => {
       location: "Central Library"
     });
 
-    assert.ok(calculateMatchScore(lostWallet, foundWallet) < 65);
+    const score = calculateMatchScore(lostWallet, foundWallet);
+
+    assert.ok(score >= 55);
+    assert.ok(score < 65);
   });
 
   it("allows high confidence only when strong image labels agree", () => {

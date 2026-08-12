@@ -5,6 +5,7 @@ import { AppHeader } from "./components/AppHeader.jsx";
 import { AuthCard } from "./components/AuthCard.jsx";
 import { BottomTabs } from "./components/BottomTabs.jsx";
 import { ChatScreen } from "./components/ChatScreen.jsx";
+import { ChatsScreen } from "./components/ChatsScreen.jsx";
 import { FeedControls } from "./components/FeedControls.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ItemCard } from "./components/ItemCard.jsx";
@@ -12,6 +13,7 @@ import { ItemDetail } from "./components/ItemDetail.jsx";
 import { MatchReviewPanel } from "./components/MatchReview.jsx";
 import { ReportForm } from "./components/ReportForm.jsx";
 import { ReportSheet } from "./components/ReportSheet.jsx";
+import { Toast } from "./components/Toast.jsx";
 import { VerifyScreen } from "./components/VerifyScreen.jsx";
 import { defaultFeedFilters, emptyAuthForm, emptyClaimForm, emptyItemForm } from "./constants/forms.js";
 import {
@@ -20,10 +22,12 @@ import {
   dismissUserAlert,
   fetchClaims,
   fetchItems,
+  fetchUserChats,
   fetchUserClaimSummary,
   loginUser,
   logoutUser,
   registerUser,
+  resetUserPassword,
   resendVerificationEmail,
   resolveItem,
   sendChatMessage,
@@ -73,6 +77,8 @@ function App() {
   const [reportSheetOpen, setReportSheetOpen] = useState(false);
   const [activeMatchReview, setActiveMatchReview] = useState(null);
   const [activeChatClaim, setActiveChatClaim] = useState(null);
+  const [userChats, setUserChats] = useState([]);
+  const [chatReadTimes, setChatReadTimes] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
   const [chatText, setChatText] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
@@ -169,6 +175,8 @@ function App() {
       .filter((match) => match.score >= HIGH_CONFIDENCE_MATCH_THRESHOLD && !dismissedMatchKeys.includes(match.id))
       .sort((a, b) => b.score - a.score);
   }, [dismissedMatchKeys, items, selectedItem]);
+  const chatListKey = useMemo(() => userChats.map((chat) => chat.id).sort().join("|"), [userChats]);
+  const unreadChatCount = useMemo(() => userChats.filter((chat) => chat.unread).length, [userChats]);
 
   // Keep auth listening in one place so Firebase decides whether the app opens at login or inside the main flow.
   useEffect(() => {
@@ -211,11 +219,53 @@ function App() {
         accepted: 0,
         rejected: 0
       });
+      setUserChats([]);
+      setChatReadTimes({});
       return;
     }
 
+    setChatReadTimes(readChatReadTimes(currentUser.id));
     loadClaimSummary();
+    loadUserChats();
   }, [items, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !chatListKey) {
+      return () => {};
+    }
+
+    const unsubscribes = userChats.map((chat) =>
+      subscribeToChatMessages({
+        claim: chat.claim,
+        currentUser,
+        item: chat.item,
+        onError: () => {},
+        onMessages: (messages) => {
+          const latestMessage = messages[messages.length - 1];
+          const readAt = chatReadTimes[chat.id] || 0;
+          const latestTime = new Date(latestMessage?.createdAt || chat.claim.createdAt || 0).getTime();
+
+          setUserChats((currentChats) =>
+            currentChats.map((currentChat) =>
+              currentChat.id === chat.id
+                ? {
+                    ...currentChat,
+                    lastMessage: latestMessage?.text || chat.claim.message || "Claim request sent",
+                    lastMessageAt: latestMessage?.createdAt || chat.claim.createdAt,
+                    unread:
+                      Boolean(latestMessage) &&
+                      latestMessage.senderId !== currentUser.id &&
+                      latestTime > readAt
+                  }
+                : currentChat
+            )
+          );
+        }
+      })
+    );
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [chatListKey, chatReadTimes, currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -225,10 +275,13 @@ function App() {
 
     return subscribeToUserAlerts({
       currentUser,
-      onAlerts: setClaimAlerts,
+      onAlerts: (alerts) => {
+        setClaimAlerts(alerts);
+        loadUserChats();
+      },
       onError: setMessage
     });
-  }, [currentUser]);
+  }, [currentUser, items]);
 
   useEffect(() => {
     if (!activeChatClaim || !selectedItem || !currentUser) {
@@ -241,9 +294,24 @@ function App() {
       currentUser,
       item: selectedItem,
       onError: setMessage,
-      onMessages: setChatMessages
+      onMessages: (messages) => {
+        setChatMessages(messages);
+
+        if (screen === "chat") {
+          markChatRead(`${selectedItem.id}:${activeChatClaim.id}`);
+        }
+      }
     });
-  }, [activeChatClaim, currentUser, selectedItem]);
+  }, [activeChatClaim, currentUser, screen, selectedItem]);
+
+  useEffect(() => {
+    if (!currentUser || !message) {
+      return () => {};
+    }
+
+    const timeout = window.setTimeout(() => setMessage(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [currentUser, message]);
 
   useEffect(() => {
     writeDismissedMatchKeys(dismissedMatchKeys);
@@ -273,6 +341,15 @@ function App() {
       setClaimSummary(summary);
     } catch (error) {
       setMessage(error.message || "Unable to load claim summary.");
+    }
+  }
+
+  async function loadUserChats() {
+    try {
+      const chats = await fetchUserChats({ currentUser, items });
+      setUserChats(chats);
+    } catch (error) {
+      setMessage(error.message || "Unable to load chats.");
     }
   }
 
@@ -365,6 +442,20 @@ function App() {
     }
   }
 
+  async function handleResetPassword() {
+    setMessage("");
+
+    try {
+      setIsAuthSaving(true);
+      const email = await resetUserPassword(authForm.email);
+      setMessage(`Password reset email sent to ${email}. Please check your inbox and junk mail.`);
+    } catch (error) {
+      setMessage(error.message || "Unable to send password reset email.");
+    } finally {
+      setIsAuthSaving(false);
+    }
+  }
+
   async function handleImageChange(event) {
     const file = event.target.files?.[0];
 
@@ -389,6 +480,11 @@ function App() {
 
     try {
       setIsSaving(true);
+      const reportLocation =
+        itemForm.type === "lost" && itemForm.location === "Other"
+          ? itemForm.otherLocation.trim()
+          : itemForm.location;
+      const report = { ...itemForm, location: reportLocation };
       const itemSignatureKey = imageSignatureKey(itemForm.imageSignature);
       const matchingImageLabels = items.find(
         (item) =>
@@ -402,9 +498,9 @@ function App() {
         currentUser,
         imageFile: itemForm.imageFile,
         report: {
-          ...itemForm,
-          searchKeywords: buildSearchKeywords(itemForm),
-          matchAttributes: buildMatchAttributes(itemForm),
+          ...report,
+          searchKeywords: buildSearchKeywords(report),
+          matchAttributes: buildMatchAttributes(report),
           imageLabels: matchingImageLabels || []
         }
       });
@@ -440,7 +536,8 @@ function App() {
 
       setSelectedClaims([claim, ...selectedClaims]);
       setClaimForm(emptyClaimForm);
-      setMessage("Claim request sent.");
+      await loadUserChats();
+      openChat({ claim, item: selectedItem });
     } catch (error) {
       setMessage(error.message || "Unable to send claim.");
     } finally {
@@ -468,6 +565,7 @@ function App() {
           : selectedClaims.filter((existingClaim) => existingClaim.id !== claim.id)
       );
       await loadClaimSummary();
+      await loadUserChats();
       setMessage(status === "rejected" ? "Claim rejected and removed." : `Claim marked as ${status}.`);
     } catch (error) {
       setMessage(error.message || "Unable to update claim status.");
@@ -510,7 +608,7 @@ function App() {
       });
       setChatText("");
     } catch (error) {
-      setMessage(error.message || "Unable to send secure message.");
+      setMessage(error.message || "Unable to send message.");
     } finally {
       setIsChatSending(false);
     }
@@ -537,11 +635,38 @@ function App() {
     setScreen("detail");
   }
 
-  function openChat(claim) {
+  function openChat(chat) {
+    const claim = chat.claim || chat;
+    const item = chat.item || selectedItem;
+
+    if (chat.item) {
+      setSelectedItemId(chat.item.id);
+    }
+
+    if (item) {
+      markChatRead(`${item.id}:${claim.id}`);
+    }
+
     setActiveChatClaim(claim);
     setChatText("");
     setMessage("");
     setScreen("chat");
+  }
+
+  function markChatRead(chatId) {
+    if (!currentUser || !chatId) {
+      return;
+    }
+
+    const readAt = Date.now();
+    setChatReadTimes((currentTimes) => {
+      const updatedTimes = { ...currentTimes, [chatId]: readAt };
+      writeChatReadTimes(currentUser.id, updatedTimes);
+      return updatedTimes;
+    });
+    setUserChats((currentChats) =>
+      currentChats.map((chat) => (chat.id === chatId ? { ...chat, unread: false } : chat))
+    );
   }
 
   function openMatchScreen() {
@@ -641,13 +766,20 @@ function App() {
             onAuthModeChange={setAuthMode}
             onAuthSubmit={handleAuthSubmit}
             onFormChange={updateAuthForm}
+            onResetPassword={handleResetPassword}
             onResendVerification={handleResendVerification}
           />
         </div>
       ) : (
         <div className="mobile-frame app-frame">
-          {(screen === "feed" || screen === "account" || screen === "alerts" || screen === "verify") && (
-            <AppHeader currentUser={currentUser} onOpenAccount={() => setScreen("account")} />
+          {(screen === "feed" || screen === "account" || screen === "alerts" || screen === "verify" || screen === "chats") && (
+            <AppHeader
+              chatCount={unreadChatCount}
+              currentUser={currentUser}
+              isChatActive={screen === "chats"}
+              onOpenAccount={() => setScreen("account")}
+              onOpenChat={() => setScreen("chats")}
+            />
           )}
 
           {(screen === "report" || screen === "detail" || screen === "match" || screen === "chat") && (
@@ -686,14 +818,7 @@ function App() {
                         <ItemCard
                           item={item}
                           key={item.id}
-                          matchScore={
-                            selectedItem &&
-                            selectedItem.type === "lost" &&
-                            selectedItem.userId === currentUser?.id &&
-                            item.id !== selectedItem.id
-                              ? calculateMatchScore(selectedItem, item)
-                              : null
-                          }
+                          matchScore={bestMatchScore(item, userLostItems)}
                           onSelect={() => openItem(item.id)}
                         />
                       ))
@@ -704,16 +829,13 @@ function App() {
             )}
 
             {screen === "report" && (
-              <>
-                <ReportForm
-                  isSaving={isSaving}
-                  itemForm={itemForm}
-                  onChange={updateItemForm}
-                  onImageChange={handleImageChange}
-                  onSubmit={handleItemSubmit}
-                />
-                {message && <p className="message">{message}</p>}
-              </>
+              <ReportForm
+                isSaving={isSaving}
+                itemForm={itemForm}
+                onChange={updateItemForm}
+                onImageChange={handleImageChange}
+                onSubmit={handleItemSubmit}
+              />
             )}
 
             {screen === "detail" && (
@@ -727,7 +849,6 @@ function App() {
                 isResolving={isResolving}
                 item={selectedItem}
                 matches={matchSuggestions}
-                message={message}
                 matchContext={
                   activeMatchReview?.foundItem.id === selectedItem?.id ||
                   activeMatchReview?.matchedLostItem.id === selectedItem?.id
@@ -775,6 +896,8 @@ function App() {
               />
             )}
 
+            {screen === "chats" && <ChatsScreen chats={userChats} onOpenChat={openChat} />}
+
             {screen === "verify" && (
               <VerifyScreen
                 verifyMatches={verifyMatches}
@@ -797,6 +920,8 @@ function App() {
               />
             )}
           </div>
+
+          <Toast message={message} onClose={() => setMessage("")} />
 
           <BottomTabs
             active={activeBottomTab(screen, activeMatchReview)}
@@ -862,11 +987,23 @@ function matchKey(lostItemId, foundItemId) {
   return `${lostItemId}:${foundItemId}`;
 }
 
+function bestMatchScore(foundItem, lostItems) {
+  const scores = lostItems
+    .filter((item) => (item.status || "open") === "open")
+    .map((item) => calculateMatchScore(item, foundItem));
+
+  return scores.length ? Math.max(...scores) : null;
+}
+
 function matchOriginScreen(match) {
   return ["account", "alerts", "verify"].includes(match?.origin) ? match.origin : "feed";
 }
 
 function activeBottomTab(screen, activeMatchReview) {
+  if (screen === "chat") {
+    return "chats";
+  }
+
   if ((screen === "match" || screen === "detail") && ["account", "alerts", "verify"].includes(activeMatchReview?.origin)) {
     return activeMatchReview.origin;
   }
@@ -897,6 +1034,31 @@ function writeDismissedMatchKeys(keys) {
     window.localStorage.setItem("findit.dismissedMatches", JSON.stringify(keys));
   } catch {
     // Ignore storage failures so match review still works in restricted browsers.
+  }
+}
+
+function readChatReadTimes(userId) {
+  if (typeof window === "undefined" || !userId) {
+    return {};
+  }
+
+  try {
+    const storedTimes = JSON.parse(window.localStorage.getItem(`findit.chatReadTimes.${userId}`) || "{}");
+    return storedTimes && typeof storedTimes === "object" && !Array.isArray(storedTimes) ? storedTimes : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeChatReadTimes(userId, times) {
+  if (typeof window === "undefined" || !userId) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(`findit.chatReadTimes.${userId}`, JSON.stringify(times));
+  } catch {
+    // Ignore storage failures so chat still works in restricted browsers.
   }
 }
 

@@ -3,7 +3,7 @@ import { getMatchConfidence } from "../utils/matching.js";
 
 export function ItemCard({ item, matchScore, onSelect }) {
   return (
-    <button className="item-card" onClick={onSelect} type="button">
+    <button className={`item-card ${item.imageUrl ? "" : "text-only"}`} onClick={onSelect} type="button">
       {item.imageUrl && <img src={item.imageUrl} alt={item.title} />}
       <div>
         <div className="item-card-header">
@@ -15,10 +15,10 @@ export function ItemCard({ item, matchScore, onSelect }) {
           <span>{item.location} · {relativeTime(item.createdAt)}</span>
           <span className={`status-pill ${item.status || "open"}`}>{item.status || "open"}</span>
         </div>
-        {typeof matchScore === "number" && matchScore > 0 && (
+        {typeof matchScore === "number" && (
           <div className="match-meter">
             <span style={{ width: `${matchScore}%` }} />
-            <b>{getMatchConfidence(matchScore)} match <em>{matchScore}%</em></b>
+            <b>{getMatchConfidence(matchScore)} match <em>{matchScore}% score</em></b>
           </div>
         )}
       </div>

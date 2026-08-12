@@ -34,20 +34,8 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/conversations/$(conversationId));
     }
 
-    function conversationAfter(conversationId) {
-      return getAfter(/databases/$(database)/documents/conversations/$(conversationId));
-    }
-
     match /users/{userId} {
       allow read, write: if isOwner(userId);
-    }
-
-    match /chatKeys/{userId} {
-      allow read: if signedIn();
-      allow create, update: if isOwner(userId)
-        && request.resource.data.keys().hasOnly(["encryptionPublicKey"])
-        && request.resource.data.encryptionPublicKey is map;
-      allow delete: if false;
     }
 
     match /items/{itemId} {
@@ -115,7 +103,8 @@ service cloud.firestore {
 	    }
 
     match /conversations/{conversationId} {
-      allow read: if signedIn() && request.auth.uid in resource.data.participantIds;
+      allow get: if signedIn();
+      allow list: if signedIn() && request.auth.uid in resource.data.participantIds;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(["itemId", "claimId", "participantIds", "createdAt"])
         && request.resource.data.createdAt == request.time
@@ -123,18 +112,21 @@ service cloud.firestore {
         && request.resource.data.participantIds[0] == claim(request.resource.data.itemId, request.resource.data.claimId).data.itemOwnerId
         && request.resource.data.participantIds[1] == claim(request.resource.data.itemId, request.resource.data.claimId).data.claimantId
         && request.auth.uid in request.resource.data.participantIds
-        && claim(request.resource.data.itemId, request.resource.data.claimId).data.status == "accepted";
+        && claim(request.resource.data.itemId, request.resource.data.claimId).data.status in ["sent", "reviewing", "accepted"];
       allow update, delete: if false;
 
       match /messages/{messageId} {
         allow read: if signedIn() && request.auth.uid in conversation(conversationId).data.participantIds;
         allow create: if signedIn()
-          && request.auth.uid in conversationAfter(conversationId).data.participantIds
-          && request.resource.data.keys().hasOnly(["ciphertext", "iv", "senderId", "createdAt"])
+          && request.auth.uid in conversation(conversationId).data.participantIds
+          && request.resource.data.keys().hasOnly(["text", "senderId", "createdAt"])
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.ciphertext is string
-          && request.resource.data.ciphertext.size() > 0
-          && request.resource.data.iv is string
+          && claim(
+            conversation(conversationId).data.itemId,
+            conversation(conversationId).data.claimId
+          ).data.status in ["sent", "reviewing", "accepted"]
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
           && request.resource.data.createdAt == request.time;
         allow update, delete: if false;
       }
